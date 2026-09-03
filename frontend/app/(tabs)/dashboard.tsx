@@ -1,21 +1,30 @@
-import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, FlatList, Pressable, RefreshControl, ActivityIndicator, TextInput } from 'react-native';
 import { Image } from 'expo-image';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import Feather from '@react-native-vector-icons/feather';
 import { api } from '../../src/api';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useFx } from '../../src/fx/FxContext';
-import { COLORS, SPACING, RADIUS, FONT, categoryMeta, currencySymbol } from '../../src/theme';
+import { COLORS, SPACING, RADIUS, FONT, CATEGORIES, categoryMeta, currencySymbol } from '../../src/theme';
 
 type Expense = {
   expense_id: string; amount: number; currency: string; category: string;
   merchant?: string; notes?: string; date: string; is_split: boolean; split_with: string[];
+  has_receipt?: boolean;
 };
 
+type DateRange = 'all' | '7d' | '30d' | 'month';
+
 const HERO_BG = 'https://images.pexels.com/photos/20818851/pexels-photo-20818851.jpeg';
+const DATE_OPTIONS: { key: DateRange; label: string }[] = [
+  { key: 'all', label: 'All time' },
+  { key: 'month', label: 'This month' },
+  { key: '30d', label: 'Last 30d' },
+  { key: '7d', label: 'Last 7d' },
+];
 
 export default function Dashboard() {
   const insets = useSafeAreaInsets();
@@ -27,6 +36,10 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [filter, setFilter] = useState<'All' | 'Personal' | 'Split'>('All');
+  const [search, setSearch] = useState('');
+  const [categoryFilter, setCategoryFilter] = useState<string>('All');
+  const [dateRange, setDateRange] = useState<DateRange>('all');
+  const [showFilters, setShowFilters] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -50,11 +63,28 @@ export default function Dashboard() {
 
   const onRefresh = async () => { setRefreshing(true); await Promise.all([load(), refreshFx()]); setRefreshing(false); };
 
-  const filtered = expenses.filter(e => {
-    if (filter === 'All') return true;
-    if (filter === 'Personal') return !e.is_split;
-    return e.is_split;
-  });
+  const filtered = useMemo(() => {
+    const now = new Date();
+    const q = search.trim().toLowerCase();
+    return expenses.filter(e => {
+      if (filter === 'Personal' && e.is_split) return false;
+      if (filter === 'Split' && !e.is_split) return false;
+      if (categoryFilter !== 'All' && e.category !== categoryFilter) return false;
+      if (dateRange !== 'all') {
+        const d = new Date(e.date);
+        if (dateRange === 'month' && (d.getMonth() !== now.getMonth() || d.getFullYear() !== now.getFullYear())) return false;
+        if (dateRange === '7d' && (now.getTime() - d.getTime()) > 7 * 86400000) return false;
+        if (dateRange === '30d' && (now.getTime() - d.getTime()) > 30 * 86400000) return false;
+      }
+      if (q) {
+        const hay = `${e.merchant || ''} ${e.notes || ''} ${e.category || ''}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+  }, [expenses, filter, search, categoryFilter, dateRange]);
+
+  const activeFilterCount = (categoryFilter !== 'All' ? 1 : 0) + (dateRange !== 'all' ? 1 : 0);
 
   const currency = user?.currency || 'USD';
   const sym = currencySymbol(currency);
@@ -98,7 +128,7 @@ export default function Dashboard() {
         </View>
       </View>
 
-      {/* Filters */}
+      {/* Filters row */}
       <View style={styles.filterRow}>
         {(['All', 'Personal', 'Split'] as const).map(k => (
           <Pressable
@@ -110,7 +140,88 @@ export default function Dashboard() {
             <Text style={[styles.chipText, filter === k && styles.chipTextActive]}>{k}</Text>
           </Pressable>
         ))}
+        <View style={{ flex: 1 }} />
+        <Pressable
+          onPress={() => setShowFilters(v => !v)}
+          style={[styles.chip, (showFilters || activeFilterCount > 0) && styles.chipActive]}
+          testID="toggle-filters-button"
+          hitSlop={6}
+        >
+          <Feather name="sliders" size={14} color={(showFilters || activeFilterCount > 0) ? '#FFF' : COLORS.onSurfaceSecondary} />
+          <Text style={[styles.chipText, (showFilters || activeFilterCount > 0) && styles.chipTextActive, { marginLeft: 4 }]}>
+            {activeFilterCount > 0 ? `Filters (${activeFilterCount})` : 'Filters'}
+          </Text>
+        </Pressable>
       </View>
+
+      {/* Search + filter chips (collapsible) */}
+      {showFilters ? (
+        <View style={styles.filtersPanel} testID="filters-panel">
+          <View style={styles.searchWrap}>
+            <Feather name="search" size={16} color={COLORS.onSurfaceTertiary} />
+            <TextInput
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Search merchant, note, category"
+              placeholderTextColor={COLORS.onSurfaceTertiary}
+              style={styles.searchInput}
+              testID="search-input"
+              returnKeyType="search"
+            />
+            {search ? (
+              <Pressable onPress={() => setSearch('')} hitSlop={8} testID="clear-search">
+                <Feather name="x-circle" size={16} color={COLORS.onSurfaceTertiary} />
+              </Pressable>
+            ) : null}
+          </View>
+
+          <FlatList
+            data={[{ key: 'All' } as any, ...CATEGORIES]}
+            horizontal
+            keyExtractor={(item: any) => item.key}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: SPACING.sm, paddingHorizontal: SPACING.lg }}
+            style={{ marginTop: SPACING.sm }}
+            renderItem={({ item }: any) => {
+              const active = categoryFilter === item.key;
+              const color = item.color || COLORS.onSurface;
+              const icon = item.icon || 'grid';
+              return (
+                <Pressable
+                  onPress={() => setCategoryFilter(item.key)}
+                  style={[styles.catChip, active && { borderColor: color, backgroundColor: color + '18' }]}
+                  testID={`cat-filter-${item.key}`}
+                >
+                  <Feather name={icon as any} size={14} color={active ? color : COLORS.onSurfaceSecondary} />
+                  <Text style={[styles.catChipText, active && { color, fontWeight: '700' }]}>{item.key}</Text>
+                </Pressable>
+              );
+            }}
+          />
+
+          <FlatList
+            data={DATE_OPTIONS}
+            horizontal
+            keyExtractor={(item) => item.key}
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ gap: SPACING.sm, paddingHorizontal: SPACING.lg }}
+            style={{ marginTop: SPACING.sm, marginBottom: SPACING.sm }}
+            renderItem={({ item }) => {
+              const active = dateRange === item.key;
+              return (
+                <Pressable
+                  onPress={() => setDateRange(item.key)}
+                  style={[styles.catChip, active && { borderColor: COLORS.brand, backgroundColor: COLORS.brandTertiary }]}
+                  testID={`date-filter-${item.key}`}
+                >
+                  <Feather name="calendar" size={14} color={active ? COLORS.brand : COLORS.onSurfaceSecondary} />
+                  <Text style={[styles.catChipText, active && { color: COLORS.brand, fontWeight: '700' }]}>{item.label}</Text>
+                </Pressable>
+              );
+            }}
+          />
+        </View>
+      ) : null}
 
       {/* List */}
       {loading ? (
@@ -124,8 +235,8 @@ export default function Dashboard() {
           ListEmptyComponent={
             <View style={styles.empty} testID="empty-state">
               <View style={styles.emptyIcon}><Feather name="inbox" size={28} color={COLORS.brand} /></View>
-              <Text style={styles.emptyTitle}>No expenses yet</Text>
-              <Text style={styles.emptyText}>Tap + to log your first expense.</Text>
+              <Text style={styles.emptyTitle}>{search || activeFilterCount ? 'No matches' : 'No expenses yet'}</Text>
+              <Text style={styles.emptyText}>{search || activeFilterCount ? 'Try clearing your search or filters.' : 'Tap + to log your first expense.'}</Text>
             </View>
           }
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.brand} />}
@@ -211,11 +322,17 @@ const styles = StyleSheet.create({
   },
   pillText: { color: '#FFF', fontSize: FONT.size.sm, fontWeight: '600' },
 
-  filterRow: { flexDirection: 'row', gap: SPACING.sm, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: SPACING.md },
-  chip: { paddingHorizontal: SPACING.lg, height: 36, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.surfaceSecondary },
+  filterRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: SPACING.md },
+  chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.lg, height: 36, borderRadius: RADIUS.pill, backgroundColor: COLORS.surfaceSecondary },
   chipActive: { backgroundColor: COLORS.onSurface },
   chipText: { fontSize: FONT.size.base, fontWeight: '600', color: COLORS.onSurfaceSecondary },
   chipTextActive: { color: '#FFF' },
+
+  filtersPanel: { paddingBottom: SPACING.sm, borderBottomWidth: 1, borderBottomColor: COLORS.border, marginBottom: SPACING.sm },
+  searchWrap: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginHorizontal: SPACING.lg, height: 44, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceSecondary, paddingHorizontal: SPACING.md },
+  searchInput: { flex: 1, fontSize: FONT.size.base, color: COLORS.onSurface, paddingVertical: 0 },
+  catChip: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, height: 36, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
+  catChipText: { fontSize: FONT.size.base, color: COLORS.onSurfaceSecondary, fontWeight: '600' },
 
   section: { fontSize: FONT.size.lg, fontWeight: '700', color: COLORS.onSurface, marginBottom: SPACING.md },
   row: {

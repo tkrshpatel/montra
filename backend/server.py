@@ -566,6 +566,54 @@ async def insights(month: Optional[str] = None, user=Depends(get_current_user)):
     }
 
 
+@api_router.get("/trends")
+async def trends(months: int = 6, user=Depends(get_current_user)):
+    """Last N months (default 6, min 2, max 24) total spending in home currency."""
+    if months < 2 or months > 24:
+        raise HTTPException(status_code=400, detail="months must be between 2 and 24")
+    home = user.get("currency", "USD")
+    now = datetime.now(timezone.utc)
+
+    # Build list of (year, month) for the last N months, oldest first
+    keys = []
+    y, m = now.year, now.month
+    for _ in range(months):
+        keys.append((y, m))
+        m -= 1
+        if m < 1:
+            m = 12
+            y -= 1
+    keys.reverse()
+
+    totals: Dict[str, Dict[str, float]] = {f"{yy:04d}-{mm:02d}": {"total": 0.0, "count": 0} for (yy, mm) in keys}
+
+    cursor = db.expenses.find(
+        {"user_id": user["user_id"]},
+        {"_id": 0, "receipt_image_base64": 0},
+    )
+    async for e in cursor:
+        try:
+            d = datetime.fromisoformat(e.get("date"))
+        except Exception:
+            continue
+        key = f"{d.year:04d}-{d.month:02d}"
+        if key not in totals:
+            continue
+        amt = await convert_amount(float(e.get("amount", 0)), e.get("currency", home), home)
+        totals[key]["total"] += amt
+        totals[key]["count"] += 1
+
+    series = [
+        {"month": k, "total": round(v["total"], 2), "count": int(v["count"])}
+        for k, v in totals.items()
+    ]
+    return {
+        "currency": home,
+        "months": months,
+        "series": series,
+    }
+
+
 # ========================= Settlements =========================
 @api_router.post("/settlements", response_model=Settlement)
 async def create_settlement(payload: SettlementCreate, user=Depends(get_current_user)):

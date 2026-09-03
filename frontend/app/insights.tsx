@@ -17,13 +17,16 @@ export default function Insights() {
   const [year, setYear] = useState(today.getFullYear());
   const [month, setMonth] = useState(today.getMonth() + 1);
   const [data, setData] = useState<any>(null);
+  const [trends, setTrends] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const load = useCallback(async () => {
     try {
       const key = `${year}-${String(month).padStart(2, '0')}`;
-      setData(await api.insights(key));
+      const [ins, tr] = await Promise.all([api.insights(key), api.trends(6)]);
+      setData(ins);
+      setTrends(tr);
     } catch (e) { console.warn(e); }
   }, [year, month]);
 
@@ -72,6 +75,17 @@ export default function Insights() {
           </Text>
         </View>
 
+        {/* 6-month trend */}
+        {trends?.series?.length ? (
+          <View style={styles.trendCard} testID="trend-chart">
+            <View style={styles.trendHeader}>
+              <Text style={styles.section}>6-month trend</Text>
+              <TrendDelta series={trends.series} sym={sym} />
+            </View>
+            <TrendBars series={trends.series} sym={sym} currentMonth={data?.month} />
+          </View>
+        ) : null}
+
         {loading ? (
           <View style={styles.center}><ActivityIndicator color={COLORS.brand} /></View>
         ) : breakdown.length === 0 ? (
@@ -109,6 +123,50 @@ export default function Insights() {
   );
 }
 
+function TrendDelta({ series, sym }: { series: any[]; sym: string }) {
+  if (series.length < 2) return null;
+  const last = series[series.length - 1].total;
+  const prev = series[series.length - 2].total;
+  const diff = last - prev;
+  const pct = prev > 0 ? (diff / prev) * 100 : (last > 0 ? 100 : 0);
+  const up = diff > 0.005;
+  const down = diff < -0.005;
+  const color = up ? COLORS.error : (down ? COLORS.brand : COLORS.onSurfaceTertiary);
+  const label = up ? 'up' : (down ? 'down' : 'flat');
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }} testID="trend-delta">
+      <Feather name={up ? 'trending-up' : (down ? 'trending-down' : 'minus')} size={14} color={color} />
+      <Text style={{ color, fontWeight: '700', fontSize: FONT.size.sm }}>
+        {`${Math.abs(pct).toFixed(0)}% ${label} vs last`}
+      </Text>
+    </View>
+  );
+}
+
+function TrendBars({ series, sym, currentMonth }: { series: any[]; sym: string; currentMonth?: string }) {
+  const max = Math.max(1, ...series.map((s: any) => s.total));
+  const H = 100;
+  return (
+    <View>
+      <View style={styles.barsRow}>
+        {series.map((s: any) => {
+          const h = Math.max(3, (s.total / max) * H);
+          const isCurrent = s.month === currentMonth;
+          return (
+            <View key={s.month} style={styles.barCol} testID={`trend-bar-${s.month}`}>
+              <Text style={styles.barVal}>{s.total > 0 ? `${sym}${Math.round(s.total)}` : ''}</Text>
+              <View style={[styles.bar, { height: h, backgroundColor: isCurrent ? COLORS.brand : COLORS.brandSecondary }]} />
+              <Text style={[styles.barLabel, isCurrent && { color: COLORS.brand, fontWeight: '700' }]}>
+                {new Date(`${s.month}-01`).toLocaleDateString(undefined, { month: 'short' })}
+              </Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: COLORS.surface },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingTop: SPACING.sm },
@@ -117,6 +175,13 @@ const styles = StyleSheet.create({
   navBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.surfaceSecondary, alignItems: 'center', justifyContent: 'center' },
   monthText: { fontSize: FONT.size.lg, fontWeight: '700', color: COLORS.onSurface, minWidth: 160, textAlign: 'center' },
   summary: { padding: SPACING.xl, borderRadius: RADIUS.lg, backgroundColor: COLORS.brandTertiary, marginBottom: SPACING.lg },
+  trendCard: { padding: SPACING.lg, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.lg, gap: SPACING.md },
+  trendHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  barsRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: SPACING.sm, height: 140 },
+  barCol: { flex: 1, alignItems: 'center', gap: 6 },
+  bar: { width: '100%', borderTopLeftRadius: RADIUS.sm, borderTopRightRadius: RADIUS.sm, minHeight: 3 },
+  barVal: { fontSize: 10, fontWeight: '700', color: COLORS.onSurfaceSecondary },
+  barLabel: { fontSize: FONT.size.sm, color: COLORS.onSurfaceTertiary, fontWeight: '600' },
   summaryLabel: { fontSize: FONT.size.base, color: COLORS.onBrandTertiary, fontWeight: '600' },
   summaryAmount: { fontSize: FONT.size.hero, fontWeight: '800', color: COLORS.brand, marginTop: SPACING.xs, letterSpacing: -1 },
   summaryMeta: { fontSize: FONT.size.base, color: COLORS.onSurfaceSecondary, marginTop: SPACING.xs },

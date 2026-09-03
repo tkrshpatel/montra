@@ -1,0 +1,42 @@
+{
+  "summary": "SplitSync iteration 5 backend testing complete. All 94 pytest cases pass in serial mode with -n 0 (21 iter1 + 24 iter2 + 17 iter3 + 14 iter4 + 18 new iter5). Verified /api/trends: (1) default months=6 returns {currency=home, months=6, series:[{month,total,count}]} with exactly 6 items in chronological order oldest..current; (2) months=3 -> 3 items, months=2 and 24 boundaries accepted; (3) months=1, 0, 25 all -> 400; (4) unauthenticated -> 401; (5) totals expressed in home currency (USD): 100 EUR expense in current month converted via live FX to a positive USD value bounded 50..200 (loose bound to tolerate rate drift); (6) older expenses (3 years past) ignored - only current-month expense contributes to a 3-month window; (7) multi-month distribution: seeded 3 distinct months (current, prev, prev-prev) and confirmed per-month totals and counts match exactly. Regressions verified: /api/insights (shape+totals+pct), /api/expenses receipt POST/GET flow with base64 stripped from POST response, shares-based split still yields correct owe amount, settlements still subtract, recurring weekly still materializes >=2 expenses, /api/scan auth wiring intact.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration5.py",
+    "/app/backend/tests/test_iteration4.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_api.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/iteration5_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py is now 891 lines (grew from 843) - keeps growing. Split into routers/services (auth, expenses, friends, groups, recurring, settlements, fx, scan, insights, trends) is overdue.",
+    "trends() iterates every expense of the user in Python and parses ISO date with datetime.fromisoformat per doc. Better to add an indexed date bound to the Mongo query using the ISO string range for the earliest month key to skip old docs entirely at the DB layer.",
+    "trends() calls await convert_amount() per expense inside the async cursor; rates are cached so cost is low, but a single fetch of the rates dict then in-memory math would be cleaner (same duplication concern as insights()).",
+    "trends() and insights() share nearly-identical logic for month-key parsing and per-doc FX conversion. Consider extracting a shared helper _aggregate_expenses(user, filter) to remove duplication.",
+    "trends() constructs the month window by decrementing manually; a small helper _prev_year_month(y,m) would be reusable across insights/trends and reduce duplicate loops (same manual decrement pattern appears in tests).",
+    "trends() silently skips expenses whose 'date' field is missing or unparseable (bare except: continue). Consider counting/logging skipped docs for observability, or requiring a normalized indexed date.",
+    "No pagination or streaming on /api/trends response - fine at current sizes, but 24 months x N users could grow; response is small so this is very low priority."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration5.py (NEW: 18 tests covering /api/trends shape, boundaries, auth, FX conversion, older-expense exclusion, multi-month distribution + regressions for insights, receipts, shares, settlements, recurring, scan)"
+  ],
+  "success_rate": {"backend": "100% (94/94 in serial via `pytest -n 0`; iter5 subset 18/18)", "frontend": "N/A - backend only per request"},
+  "seed_data_creation": "Reused conftest seed: user_test_fixture01 / test_token_abc / TEST_backend_tester@example.com (home currency reset to USD in each test that needs deterministic totals). All test entities prefixed TEST_. Per-test _clean_user() truncates expenses/settlements/recurring/friends to isolate assertions. Session-scoped teardown removes user + all owned data.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 5 fully validated. Run: `cd /app/backend && pytest tests/ -n 0 -v` for deterministic serial (all 94 pass in ~21s). pytest.ini still ships with -n 2 --dist loadscope which causes shared-seed-user races across iter2/3/4/5 mutating classes (pre-existing since iter3). Prefer `-n 0` or file-level partitioning. /api/trends contract: query `months` (int, default 6, valid 2..24, else 400); response `{currency: home, months: N, series: [{month:'YYYY-MM', total: float rounded 2dp, count: int}] }` with series chronological oldest..current (current month always last item). Empty-user series is all zeros with correct month keys. FX is USD-pivoted, cached 30 min; totals are in the user's home currency. Frontend adds only search/filter (client-side) per problem statement - not tested here per request.",
+  "rca_of_issue": "No product bugs found in iteration 5. FX conversion assertion uses a wide bound (50 < total < 200 for 100 EUR -> USD) instead of an exact value because live FX rates drift; the shape and count assertions remain deterministic. The older-expenses-ignored test uses a date 3 years in the past to be safely outside any 2..24-month window regardless of when the suite runs. Pre-existing xdist race under default -n 2 remains (shared seed user across iter2/3/4/5 mutating tests); mitigate with -n 0."
+}
