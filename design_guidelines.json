@@ -1,0 +1,209 @@
+{
+  "app_name": "SplitSync",
+  "personality": "1 iOS-Native Clean",
+  "personality_one_liner": "A crisp, tactile, and frictionless financial tool that feels native to the OS, emphasizing clarity, typography, and purposeful whitespace over heavy decoration.",
+  "color": {
+    "light": {
+      "surface": "#FFFFFF",
+      "onSurface": "#1A1A1A",
+      "surfaceSecondary": "#F5F5F7",
+      "onSurfaceSecondary": "#4A4A4A",
+      "surfaceTertiary": "#EBEBF0",
+      "onSurfaceTertiary": "#8E8E93",
+      "surfaceInverse": "#1A1A1A",
+      "onSurfaceInverse": "#FFFFFF",
+      "brand": "#4D7358",
+      "brandPrimary": "#4D7358",
+      "onBrandPrimary": "#FFFFFF",
+      "brandSecondary": "#85A38F",
+      "onBrandSecondary": "#1A1A1A",
+      "brandTertiary": "#E3EDE6",
+      "onBrandTertiary": "#4D7358",
+      "success": "#4D7358",
+      "onSuccess": "#FFFFFF",
+      "warning": "#FF9500",
+      "onWarning": "#FFFFFF",
+      "error": "#FF3B30",
+      "onError": "#FFFFFF",
+      "info": "#8E8E93",
+      "onInfo": "#FFFFFF",
+      "border": "#E5E5EA",
+      "borderStrong": "#C7C7CC",
+      "divider": "#E5E5EA"
+    },
+    "dark": {
+      "surface": "#000000",
+      "onSurface": "#FFFFFF",
+      "surfaceSecondary": "#1C1C1E",
+      "onSurfaceSecondary": "#EBEBF5",
+      "surfaceTertiary": "#2C2C2E",
+      "onSurfaceTertiary": "#98989D",
+      "surfaceInverse": "#FFFFFF",
+      "onSurfaceInverse": "#000000",
+      "brand": "#72A381",
+      "brandPrimary": "#72A381",
+      "onBrandPrimary": "#000000",
+      "brandSecondary": "#85A38F",
+      "onBrandSecondary": "#000000",
+      "brandTertiary": "#223327",
+      "onBrandTertiary": "#72A381",
+      "success": "#72A381",
+      "onSuccess": "#000000",
+      "warning": "#FF9F0A",
+      "onWarning": "#000000",
+      "error": "#FF453A",
+      "onError": "#000000",
+      "info": "#98989D",
+      "onInfo": "#000000",
+      "border": "#38383A",
+      "borderStrong": "#48484A",
+      "divider": "#38383A"
+    }
+  },
+  "typography": {
+    "displayFontFamily": "Plus Jakarta Sans",
+    "textFontFamily": "Plus Jakarta Sans",
+    "scale": {
+      "sm": 12,
+      "base": 14,
+      "lg": 16,
+      "xl": 20,
+      "2xl": 24,
+      "3xl": 32,
+      "4xl": 40
+    }
+  },
+  "spacing": {
+    "rule": "Generous vertical breathing room. Cards and sections are separated by large margins (xl/2xl) to create distinct visual chunks. Touch targets are strictly >=44pt.",
+    "xs": 4,
+    "sm": 8,
+    "md": 12,
+    "lg": 16,
+    "xl": 24,
+    "2xl": 32,
+    "3xl": 48
+  },
+  "radius_tokens": {
+    "sm": 6,
+    "md": 12,
+    "lg": 20,
+    "pill": 999
+  },
+  "shadow_tier": 1,
+  "navigation": "bottom_tabs",
+  "icon_set": "Phosphor",
+  "glassmorphism": {
+    "enabled": true,
+    "do's": [
+      "Use expo-blur with a tinted translucent base for the bottom tab bar.",
+      "Apply to sticky headers that overlay scrolling transaction lists.",
+      "Use a frosted glass effect on the floating action button (FAB) for adding expenses.",
+      "Apply to the hero balance card when overlaying the abstract sage green texture."
+    ],
+    "dont's": [
+      "Do not use blur on standard list items or small dense data rows.",
+      "Do not use blur on form inputs.",
+      "Do not skip the underlying tint - glass must be readable regardless of the scrolling content underneath."
+    ]
+  },
+  "platform_libraries": {
+    "glass": {
+      "ios": "expo-glass-effect",
+      "android": "expo-blur",
+      "low_end_android_fallback": "solid surfaceSecondary"
+    },
+    "image": "expo-image",
+    "blur": "expo-blur",
+    "bottom_sheet": "@gorhom/bottom-sheet",
+    "animation": "react-native-reanimated",
+    "gesture": "react-native-gesture-handler"
+  },
+  "screens": [
+    {
+      "name": "Dashboard",
+      "purpose": "A high-level view of financial health prioritizing net balance, recent activity, and one-touch expense logging.",
+      "states": {
+        "loading": "Skeleton UI for the hero card and top 3 transaction rows.",
+        "empty": "Illustration of a pristine wallet with a 'Log your first expense' CTA.",
+        "error": "Readable error message stating 'Unable to load transactions' with a 'Retry' button."
+      },
+      "layout": "Hero balance card at the top (using the abstract sage texture background, gradient scrim, and overlaid text). Below the card, a segmented control or filter chips (All, Split, Personal). Then, a grouped transaction list (by Date). A sticky Floating Action Button (FAB) anchored at the bottom right or center, above the tab bar, for quick 'Add Expense'."
+    },
+    {
+      "name": "Add Expense (Modal)",
+      "purpose": "A frictionless, progressive-disclosure flow to log an expense or scan a receipt.",
+      "states": {
+        "loading": "N/A for entry, but button shows loading spinner during submit.",
+        "empty": "N/A",
+        "error": "Inline validation for missing amount or category."
+      },
+      "layout": "Full-sheet modal. Top section features a massive numeric input for the Amount (using tabular numbers). Below, a horizontal scrolling list of friends/groups to split with. Followed by Category selection (tinted icon chips) and an optional Notes field. A prominent 'Scan Invoice' button sits near the top to bypass manual entry. Fixed 'Save' CTA at the bottom inside a KeyboardAvoidingView."
+    },
+    {
+      "name": "Scan Invoice",
+      "purpose": "AI-powered camera interface to auto-extract expense details from receipts.",
+      "states": {
+        "loading": "Scanning animation (laser line moving up and down the captured image) with 'Extracting details...'.",
+        "empty": "Camera viewfinder with frame guidelines.",
+        "error": "Error toast 'Could not read receipt' with a retake button."
+      },
+      "layout": "Full-screen camera view. Translucent overlay with a clear cutout rectangle for the receipt. Large capture button at the bottom. Once captured, a bottom sheet slides up showing the AI-extracted fields (Amount, Date, Merchant) for user confirmation before redirecting to the Add Expense modal."
+    },
+    {
+      "name": "Split Bills",
+      "purpose": "A clear, trust-centric view of who owes whom, reducing social friction through net balance simplification.",
+      "states": {
+        "loading": "Skeleton rows for friend balances.",
+        "empty": "Illustration of a handshake with 'No active splits. Invite a friend.' CTA.",
+        "error": "Error toast 'Failed to sync balances'."
+      },
+      "layout": "Top section shows a simplified 'Net Balance' (e.g., 'You are owed $50 in total'). Below is a list of active groups and friends, displaying real avatar photos (tier 1 imagery) and their specific balance (green if they owe you, grey if settled). Tapping a friend opens a detailed transaction history with a 'Settle Up' button."
+    },
+    {
+      "name": "Profile & Settings",
+      "purpose": "Manage identity, authentication, and core app preferences like currency.",
+      "states": {
+        "loading": "Spinner during Google Sign-in resolution.",
+        "empty": "Logged out state showing a 'Sign in with Google' button prominently.",
+        "error": "Error toast for failed auth."
+      },
+      "layout": "Header with user's Google avatar and name. A card-based settings list below. Key rows: 'Currency Toggle (USD/INR)', 'Linked Accounts', and 'Sign Out'. Use tinted icon containers (brandTertiary bg) for the leading icons on each setting row."
+    }
+  ],
+  "images": {
+    "hero_card_bg": {
+      "url": "https://images.pexels.com/photos/20818851/pexels-photo-20818851.jpeg",
+      "dark": "https://images.pexels.com/photos/20818851/pexels-photo-20818851.jpeg",
+      "alt": "Abstract sage green gradient texture"
+    },
+    "friend_avatar_1": {
+      "url": "https://images.unsplash.com/photo-1438761681033-6461ffad8d80",
+      "alt": "Portrait of a friend"
+    },
+    "friend_avatar_2": {
+      "url": "https://images.pexels.com/photos/1115700/pexels-photo-1115700.jpeg",
+      "alt": "Portrait of a friend"
+    },
+    "google_logo": {
+      "url": "https://images.unsplash.com/photo-1678483790053-71367bc7a02c?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA0MTJ8MHwxfHNlYXJjaHwxfHxnb29nbGUlMjBsb2dvJTIwdHJhbnNwYXJlbnR8ZW58MHx8fHwxNzg4MzYwMzIwfDA&ixlib=rb-4.1.0&q=85",
+      "alt": "Google logo"
+    }
+  },
+  "haptics": {
+    "add_expense_submit": "success",
+    "scan_receipt_capture": "medium",
+    "toggle_currency": "light",
+    "select_split_participant": "selection",
+    "tab_switch": "selection",
+    "error_state": "error"
+  },
+  "instructions_to_main_agent": [
+    "Strictly follow the '1 iOS-Native Clean' personality. Do not introduce any blue, indigo, or purple hues - the app relies entirely on a crisp monochrome base with Sage/Moss Green accents.",
+    "For the hero balance card on the Dashboard, overlay the 'hero_card_bg' image, apply a mandatory top-to-bottom linear gradient scrim (transparent to surfaceInverse at 70%+ opacity), and render text using onSurfaceInverse to guarantee readability.",
+    "Ensure touch targets are universally >=44x44pt.",
+    "Implement the Add Expense flow as a bottom sheet modal or full-screen flow with a massive, tabular-aligned numeric input field at the top.",
+    "For the Split Bills section, implement Net Balance Simplification: show a consolidated 'who owes whom' total rather than just a raw ledger. Use the provided friend_avatar images for participants.",
+    "When integrating Google Auth or displaying the Google logo, utilize the provided 'google_logo' image asset, falling back to a vector icon only if strictly necessary due to background clipping.",
+    "Adhere strictly to the haptics mapping. Bind 'selection' haptics to currency toggling and participant selection, and 'success' to expense logging."
+  ]
+}
