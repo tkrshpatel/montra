@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Feather from '@react-native-vector-icons/feather';
@@ -16,11 +16,30 @@ export default function Profile() {
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, signOut, refresh } = useAuth();
+  const { user, signOut, refresh, deleteAccount } = useAuth();
   const { mode, setMode } = useTheme();
   const lock = useLock();
   const [busy, setBusy] = useState(false);
   const [lockBusy, setLockBusy] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const confirmDelete = () => {
+    Alert.alert(
+      'Delete your account?',
+      'This permanently removes your profile, expenses, friends, groups, recurring rules, settlements and sessions. This action cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete forever',
+          style: 'destructive',
+          onPress: async () => {
+            setDeleting(true);
+            try { await deleteAccount(); } finally { setDeleting(false); }
+          },
+        },
+      ],
+    );
+  };
 
   const setCurrency = async (c: string) => {
     if (busy || user?.currency === c) return;
@@ -146,6 +165,23 @@ export default function Profile() {
         <Feather name="log-out" size={18} color={colors.error} />
         <Text style={styles.signOutText}>Sign out</Text>
       </Pressable>
+
+      <Pressable
+        onPress={confirmDelete}
+        disabled={deleting}
+        style={[styles.deleteBtn, deleting && { opacity: 0.6 }]}
+        testID="delete-account-button"
+      >
+        {deleting ? (
+          <ActivityIndicator color={colors.error} />
+        ) : (
+          <>
+            <Feather name="trash-2" size={16} color={colors.error} />
+            <Text style={styles.deleteText}>Delete my account</Text>
+          </>
+        )}
+      </Pressable>
+      <Text style={styles.deleteHint}>Permanently erases all your data. Cannot be undone.</Text>
     </ScrollView>
   );
 }
@@ -192,4 +228,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   rowLabel: { fontSize: FONT.size.base, color: colors.onSurface, flex: 1 },
   signOut: { margin: SPACING.lg, marginTop: SPACING.xl, padding: SPACING.lg, borderRadius: RADIUS.md, borderWidth: 1, borderColor: colors.error + '33', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
   signOutText: { color: colors.error, fontWeight: '700', fontSize: FONT.size.lg },
+  deleteBtn: { marginHorizontal: SPACING.lg, marginTop: SPACING.sm, padding: SPACING.md, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
+  deleteText: { color: colors.error, fontWeight: '600', fontSize: FONT.size.base },
+  deleteHint: { marginHorizontal: SPACING.lg, textAlign: 'center', fontSize: FONT.size.sm, color: colors.onSurfaceTertiary, marginBottom: SPACING.xl },
 });

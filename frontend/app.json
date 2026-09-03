@@ -10,6 +10,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.emergent.invoicescan.d4y5at",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Scan receipts to log expenses",
         "NSPhotoLibraryUsageDescription": "Pick a receipt to scan",
@@ -53,7 +54,8 @@
         {
           "faceIDPermission": "Unlock Montra with Face ID"
         }
-      ]
+      ],
+      "expo-apple-authentication"
     ],
     "experiments": {
       "typedRoutes": true

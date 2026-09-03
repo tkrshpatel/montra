@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -131,7 +131,10 @@ export default function AddExpense() {
   }, [splitMode, selectedIds, shares, amt, friends]);
 
   const save = async () => {
-    if (!amt || amt <= 0) return;
+    if (!amt || amt <= 0) {
+      Alert.alert('Amount required', 'Please enter an amount greater than 0.');
+      return;
+    }
     setSaving(true);
     try {
       const body: any = {
@@ -150,12 +153,38 @@ export default function AddExpense() {
       } else {
         body.split_with = selectedIds;
       }
-      if (receiptBase64) body.receipt_image_base64 = receiptBase64;
+      if (receiptBase64) {
+        // Guard against oversized receipts (backend caps at ~5.5M chars ≈ 4MB image).
+        if (receiptBase64.length > 5_400_000) {
+          Alert.alert('Receipt too large', 'The attached photo is very large. Please retake it or remove it to save the expense.');
+          setSaving(false);
+          return;
+        }
+        body.receipt_image_base64 = receiptBase64;
+      }
       await api.createExpense(body);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       router.back();
-    } catch (e) {
-      console.warn(e);
+    } catch (e: any) {
+      console.warn('createExpense failed', e);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+      const msg = String(e?.message || e || '').trim();
+      if (msg === 'unauthorized') {
+        Alert.alert('Session expired', 'Please sign in again to save this expense.', [
+          { text: 'OK', onPress: () => router.replace('/login') },
+        ]);
+      } else {
+        // Try to surface backend detail if present
+        let detail = 'Something went wrong. Please try again.';
+        try {
+          const parsed = JSON.parse(msg);
+          if (parsed?.detail) detail = String(parsed.detail);
+          else if (msg) detail = msg.length > 200 ? msg.slice(0, 200) + '…' : msg;
+        } catch {
+          if (msg && msg !== 'HTTP 0') detail = msg.length > 200 ? msg.slice(0, 200) + '…' : msg;
+        }
+        Alert.alert("Couldn't save expense", detail);
+      }
     } finally {
       setSaving(false);
     }
@@ -381,8 +410,8 @@ export default function AddExpense() {
       <View style={[styles.saveBar, { paddingBottom: insets.bottom + SPACING.md }]}>
         <Pressable
           onPress={save}
-          disabled={saving || !amount}
-          style={[styles.saveBtn, (!amount || saving) && { opacity: 0.5 }]}
+          disabled={saving || !amt || amt <= 0}
+          style={[styles.saveBtn, (!amt || amt <= 0 || saving) && { opacity: 0.5 }]}
           testID="save-expense-button"
         >
           {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveText}>Save expense</Text>}

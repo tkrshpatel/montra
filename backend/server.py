@@ -13,6 +13,9 @@ from typing import List, Optional, Dict, Any
 from datetime import datetime, timezone, timedelta
 
 from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent
+import jwt as pyjwt
+from jwt.algorithms import RSAAlgorithm
+import json as _json
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -24,6 +27,13 @@ EMERGENT_AUTH_SESSION_URL = os.environ.get(
     'EMERGENT_AUTH_SESSION_URL',
     'https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data',
 )
+APPLE_AUDIENCES = [a.strip() for a in os.environ.get(
+    'APPLE_AUDIENCES', 'com.emergent.invoicescan.d4y5at,host.exp.Exponent'
+).split(',') if a.strip()]
+APPLE_JWKS_URL = 'https://appleid.apple.com/auth/keys'
+APPLE_ISSUER = 'https://appleid.apple.com'
+_APPLE_JWKS_CACHE: Dict[str, Any] = {"keys": None, "fetched_at": None}
+_APPLE_JWKS_LOCK = asyncio.Lock()
 
 # Security limits
 MAX_RECEIPT_B64_LEN = 5_500_000  # ~4MB raw image
@@ -46,6 +56,12 @@ logger = logging.getLogger(__name__)
 # ========================= Models =========================
 class SessionExchangeRequest(BaseModel):
     session_id: str
+
+
+class AppleSignInRequest(BaseModel):
+    identity_token: str
+    name: Optional[str] = None  # only on first sign-in
+    email: Optional[str] = None  # only on first sign-in
 
 
 class UserPublic(BaseModel):
@@ -268,6 +284,130 @@ async def auth_logout(authorization: Optional[str] = Header(None)):
         token = authorization.split(" ", 1)[1].strip()
         await db.user_sessions.delete_one({"session_token": token})
     return {"ok": True}
+
+
+# --------- Sign in with Apple ---------
+async def _fetch_apple_jwks() -> List[Dict[str, Any]]:
+    now = datetime.now(timezone.utc)
+    async with _APPLE_JWKS_LOCK:
+        cached = _APPLE_JWKS_CACHE.get("keys")
+        fetched = _APPLE_JWKS_CACHE.get("fetched_at")
+        if cached and fetched and (now - fetched).total_seconds() < 3600:
+            return cached
+        async with httpx.AsyncClient(timeout=10.0) as hc:
+            r = await hc.get(APPLE_JWKS_URL)
+        r.raise_for_status()
+        keys = (r.json() or {}).get("keys", [])
+        _APPLE_JWKS_CACHE["keys"] = keys
+        _APPLE_JWKS_CACHE["fetched_at"] = now
+        return keys
+
+
+async def _verify_apple_token(identity_token: str) -> Dict[str, Any]:
+    if not identity_token:
+        raise HTTPException(status_code=400, detail="identity_token required")
+    try:
+        unverified_header = pyjwt.get_unverified_header(identity_token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid token header")
+    kid = unverified_header.get("kid")
+    if not kid:
+        raise HTTPException(status_code=401, detail="Missing kid")
+    keys = await _fetch_apple_jwks()
+    jwk = next((k for k in keys if k.get("kid") == kid), None)
+    if not jwk:
+        raise HTTPException(status_code=401, detail="Unknown Apple signing key")
+    try:
+        pubkey = RSAAlgorithm.from_jwk(_json.dumps(jwk))
+        claims = pyjwt.decode(
+            identity_token,
+            pubkey,
+            algorithms=["RS256"],
+            audience=APPLE_AUDIENCES,
+            issuer=APPLE_ISSUER,
+        )
+    except pyjwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Apple token expired")
+    except pyjwt.InvalidAudienceError:
+        raise HTTPException(status_code=401, detail="Invalid audience")
+    except pyjwt.InvalidIssuerError:
+        raise HTTPException(status_code=401, detail="Invalid issuer")
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid Apple token")
+    if not claims.get("sub"):
+        raise HTTPException(status_code=401, detail="No sub in token")
+    return claims
+
+
+@api_router.post("/auth/apple", response_model=SessionResponse)
+async def auth_apple(payload: AppleSignInRequest):
+    claims = await _verify_apple_token(payload.identity_token)
+    apple_sub = claims["sub"]
+    token_email = claims.get("email")
+
+    existing = await db.users.find_one({"apple_sub": apple_sub}, {"_id": 0})
+    if not existing and token_email:
+        # link an existing email-only account if present
+        existing = await db.users.find_one({"email": token_email}, {"_id": 0})
+        if existing:
+            await db.users.update_one(
+                {"user_id": existing["user_id"]},
+                {"$set": {"apple_sub": apple_sub}},
+            )
+
+    if existing:
+        user_id = existing["user_id"]
+        # Do NOT overwrite name/email with nulls on subsequent sign-ins
+        updates: Dict[str, Any] = {}
+        if not existing.get("name") and payload.name:
+            updates["name"] = payload.name
+        if not existing.get("email") and (payload.email or token_email):
+            updates["email"] = payload.email or token_email
+        if updates:
+            await db.users.update_one({"user_id": user_id}, {"$set": updates})
+        currency = existing.get("currency", "USD")
+        name = existing.get("name") or payload.name or "Apple User"
+        email = existing.get("email") or payload.email or token_email or ""
+        picture = existing.get("picture")
+    else:
+        user_id = f"user_{uuid.uuid4().hex[:12]}"
+        currency = "USD"
+        name = payload.name or "Apple User"
+        email = payload.email or token_email or ""
+        picture = None
+        await db.users.insert_one({
+            "user_id": user_id, "apple_sub": apple_sub,
+            "email": email, "name": name,
+            "picture": picture, "currency": currency,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+
+    session_token = f"apl_{uuid.uuid4().hex}{uuid.uuid4().hex}"
+    await db.user_sessions.insert_one({
+        "session_token": session_token,
+        "user_id": user_id,
+        "expires_at": datetime.now(timezone.utc) + timedelta(days=7),
+        "created_at": datetime.now(timezone.utc),
+    })
+    return SessionResponse(
+        session_token=session_token,
+        user=UserPublic(user_id=user_id, email=email, name=name, picture=picture, currency=currency),
+    )
+
+
+# --------- Delete Account ---------
+@api_router.delete("/auth/account")
+async def delete_account(user=Depends(get_current_user)):
+    uid = user["user_id"]
+    # Hard-delete all user-owned data
+    await db.expenses.delete_many({"user_id": uid})
+    await db.friends.delete_many({"user_id": uid})
+    await db.groups.delete_many({"user_id": uid})
+    await db.recurring.delete_many({"user_id": uid})
+    await db.settlements.delete_many({"user_id": uid})
+    await db.user_sessions.delete_many({"user_id": uid})
+    await db.users.delete_one({"user_id": uid})
+    return {"ok": True, "deleted": True}
 
 
 @api_router.post("/auth/currency", response_model=UserPublic)
@@ -903,7 +1043,8 @@ async def root():
 @app.on_event("startup")
 async def on_startup():
     try:
-        await db.users.create_index("email", unique=True)
+        await db.users.create_index("email", unique=False, sparse=True)
+        await db.users.create_index("apple_sub", unique=True, sparse=True)
         await db.users.create_index("user_id", unique=True)
         await db.user_sessions.create_index("session_token", unique=True)
         await db.user_sessions.create_index("user_id")

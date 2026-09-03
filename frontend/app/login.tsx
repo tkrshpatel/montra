@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, Pressable, ActivityIndicator, ScrollView, Platform } from 'react-native';
 import { Image } from 'expo-image';
 import { useMemo, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,13 +10,19 @@ import Feather from '@react-native-vector-icons/feather';
 export default function Login() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { signIn } = useAuth();
+  const { signIn, signInApple } = useAuth();
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
+  const [appleBusy, setAppleBusy] = useState(false);
 
   const handle = async () => {
     setBusy(true);
     try { await signIn(); } finally { setBusy(false); }
+  };
+
+  const handleApple = async () => {
+    setAppleBusy(true);
+    try { await signInApple(); } finally { setAppleBusy(false); }
   };
 
   const features = [
@@ -81,6 +87,23 @@ export default function Login() {
           </>
         )}
       </Pressable>
+      {Platform.OS === 'ios' ? (
+        <Pressable
+          onPress={handleApple}
+          disabled={appleBusy}
+          style={({ pressed }) => [styles.appleBtn, pressed && { opacity: 0.9 }]}
+          testID="apple-signin-button"
+        >
+          {appleBusy ? (
+            <ActivityIndicator color="#FFF" />
+          ) : (
+            <>
+              <Feather name="chrome" size={20} color="#FFF" />
+              <Text style={styles.appleText}>Continue with Apple</Text>
+            </>
+          )}
+        </Pressable>
+      ) : null}
       <Text style={styles.small}>Powered by Emergent Auth  •  Sessions last 7 days.</Text>
     </ScrollView>
   );
@@ -127,5 +150,15 @@ const makeStyles = (colors: any) => StyleSheet.create({
   },
   gIcon: { width: 20, height: 20 },
   googleText: { fontSize: FONT.size.lg, fontWeight: '700', color: colors.onBrand },
+  appleBtn: {
+    marginTop: SPACING.md,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    gap: SPACING.md,
+    width: '100%',
+    height: 60,
+    borderRadius: RADIUS.pill,
+    backgroundColor: '#000',
+  },
+  appleText: { fontSize: FONT.size.lg, fontWeight: '700', color: '#FFF' },
   small: { fontSize: FONT.size.sm, color: colors.onSurfaceTertiary, textAlign: 'center', marginTop: SPACING.md, fontWeight: '500' },
 });

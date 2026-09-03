@@ -18,6 +18,7 @@
     "date-fns": "4.1.0",
     "dayjs": "1.11.13",
     "expo": "57.0.19",
+    "expo-apple-authentication": "~57.0.1",
     "expo-blur": "57.0.2",
     "expo-camera": "~57.0.4",
     "expo-constants": "57.0.17",

@@ -11,7 +11,9 @@ type AuthState = {
   loading: boolean;
   user: User | null;
   signIn: () => Promise<void>;
+  signInApple: () => Promise<void>;
   signOut: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   refresh: () => Promise<void>;
 };
 
@@ -131,8 +133,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(null);
   }, []);
 
+  const signInApple = useCallback(async () => {
+    if (Platform.OS !== 'ios') return;
+    const AppleAuth = await import('expo-apple-authentication');
+    try {
+      const available = await AppleAuth.isAvailableAsync();
+      if (!available) return;
+      const cred = await AppleAuth.signInAsync({
+        requestedScopes: [
+          AppleAuth.AppleAuthenticationScope.FULL_NAME,
+          AppleAuth.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+      if (!cred.identityToken) return;
+      const displayName = [cred.fullName?.givenName, cred.fullName?.familyName].filter(Boolean).join(' ') || null;
+      const resp = await api.authApple({
+        identity_token: cred.identityToken,
+        name: displayName,
+        email: cred.email,
+      });
+      await saveToken(resp.session_token);
+      setUser(resp.user);
+    } catch (e: any) {
+      // ERR_CANCELED is fine, ignore
+      if (String(e?.code || '').includes('CANCEL')) return;
+      console.warn('Apple sign-in failed', e);
+    }
+  }, []);
+
+  const deleteAccount = useCallback(async () => {
+    try { await api.deleteAccount(); } catch {}
+    await clearToken();
+    setUser(null);
+  }, []);
+
   return (
-    <AuthContext.Provider value={{ loading, user, signIn, signOut, refresh }}>
+    <AuthContext.Provider value={{ loading, user, signIn, signInApple, signOut, deleteAccount, refresh }}>
       {children}
     </AuthContext.Provider>
   );

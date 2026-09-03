@@ -1,21 +1,51 @@
+import Constants from 'expo-constants';
 import { getToken, clearToken } from './auth/tokenStore';
 
-const BASE = process.env.EXPO_PUBLIC_BACKEND_URL as string;
+// Prefer build-time env; fall back to expoConfig.extra (helps if env isn't baked into a native build).
+const BASE =
+  (process.env.EXPO_PUBLIC_BACKEND_URL as string | undefined) ||
+  ((Constants?.expoConfig?.extra as any)?.EXPO_PUBLIC_BACKEND_URL as string | undefined) ||
+  '';
 
-async function req(path: string, init: RequestInit = {}) {
+// Per-request timeout so requests never hang forever on a flaky network.
+const DEFAULT_TIMEOUT_MS = 30_000;
+
+async function req(path: string, init: RequestInit = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const token = await getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(init.headers as any || {}),
   };
   if (token) headers['Authorization'] = `Bearer ${token}`;
-  const res = await fetch(`${BASE}/api${path}`, { ...init, headers });
+  if (!BASE) {
+    throw new Error('Backend URL is not configured. Please reinstall the app.');
+  }
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/api${path}`, { ...init, headers, signal: controller.signal });
+  } catch (netErr: any) {
+    if (netErr?.name === 'AbortError') {
+      throw new Error('Request timed out. Please try again.');
+    }
+    throw new Error(netErr?.message ? `Network error: ${netErr.message}` : 'Network error. Please check your connection.');
+  } finally {
+    clearTimeout(timer);
+  }
   if (res.status === 401) {
     await clearToken();
     throw new Error('unauthorized');
   }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
+    // Try to surface FastAPI { detail: "..." } payloads
+    try {
+      const parsed = JSON.parse(text);
+      if (parsed?.detail) throw new Error(typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail));
+    } catch (e: any) {
+      if (e && typeof e.message === 'string' && e.message && !e.message.startsWith('{')) throw e;
+    }
     throw new Error(text || `HTTP ${res.status}`);
   }
   const ct = res.headers.get('content-type') || '';
@@ -26,6 +56,9 @@ async function req(path: string, init: RequestInit = {}) {
 export const api = {
   authSession: (session_id: string) =>
     req('/auth/session', { method: 'POST', body: JSON.stringify({ session_id }) }),
+  authApple: (data: { identity_token: string; name?: string | null; email?: string | null }) =>
+    req('/auth/apple', { method: 'POST', body: JSON.stringify(data) }),
+  deleteAccount: () => req('/auth/account', { method: 'DELETE' }),
   me: () => req('/auth/me'),
   logout: () => req('/auth/logout', { method: 'POST' }),
   setCurrency: (currency: string) =>
