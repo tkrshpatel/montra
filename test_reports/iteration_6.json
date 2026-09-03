@@ -1,0 +1,43 @@
+{
+  "summary": "SplitSync iteration 6 (security hardening) backend testing complete. All 25 new pytest cases pass (25/25) and the full serial suite passes 119/119 in ~193s via `pytest -n 0`. Verified: (1) POST /api/scan with base64 length > 5,500,000 returns 413 with generic 'Image too large' in <5s (LLM not invoked); (2) per-user hourly rate limit — using a dedicated seed user (TEST_scan_rl_iter6@example.com / bearer TEST_scan_rl_token_iter6) 20 tiny valid JPEG scans (48x32 with features/text/line) all succeed, 21st returns 429 with 'rate limit' in detail; primary test user (test_token_abc) still returns 200/502 on scan proving buckets are per-user; (3) LLM failure surface — 502 responses carry only generic 'AI extraction failed' text, no Traceback / server file path / stack details leaked; if the LLM tolerated garbage the response is still non-leaky; (4) POST /api/expenses amount=0 and amount=-1 both return 400 with 'amount must be > 0'; (5) currency='XYZ' returns 400 with 'currency' + supported list; (6) receipt_image_base64 > 5,500,000 returns 413; (7) valid USD amount=10 regression passes and is persisted (Create→GET verified); (8) POST /api/recurring: amount<=0 → 400, currency='XYZ' → 400, cadence='daily' → 400, valid monthly USD 15.0 accepted and persisted; (9) CORS preflight (OPTIONS with Origin+ACRM) returns Access-Control-Allow-Origin=* AND Access-Control-Allow-Credentials absent (verified None), Access-Control-Allow-Methods includes GET, POST, DELETE, OPTIONS; (10) Regression battery: /api/auth/me, /api/friends, /api/groups, /api/settlements, /api/expenses, /api/insights, /api/trends (months=6, series length 6), /api/fx (5 currencies), and /api/expenses/{id}/receipt round-trip all still succeed. Legacy iter1-5 (94 tests) remain fully green.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration6.py",
+    "/app/backend/tests/test_iteration5.py",
+    "/app/backend/tests/test_iteration4.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_api.py",
+    "/app/backend/tests/conftest.py",
+    "/app/test_reports/pytest/iteration6_results.xml",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py has grown to 921 lines; splitting into routers (auth, expenses, friends, groups, recurring, settlements, fx, scan, insights, trends) is now overdue and would make security invariants (size cap + rate limit) easier to audit.",
+    "Rate-limit state (_SCAN_HITS) is in-process memory only. Under multi-worker deployment (gunicorn/uvicorn workers>1) the 20/hour cap is per-worker not per-user globally; consider Mongo TTL bucket or Redis if you ever scale horizontally.",
+    "SCAN_RATE_PER_HOUR and MAX_RECEIPT_B64_LEN are module constants; consider exposing via env vars so security thresholds can be tuned without redeploying code.",
+    "Currency validation duplicated in /expenses, /recurring, /auth/currency — extract a `_validate_currency(cur)` helper to keep the supported set enforced in one place.",
+    "Size check on /expenses receipt_image_base64 short-circuits after amount/currency validation but BEFORE any DB call — good. Consider adding the same `Field(max_length=…)` on the Pydantic model so FastAPI can 422 earlier and skew away from custom 413 mapping.",
+    "Emergent LLM chat currently uses `gemini-3-flash-preview`; if that preview is deprecated/removed the /scan endpoint will 502 constantly. Consider a fallback model or graceful degradation.",
+    "logger.exception in /scan writes full stack to backend logs (correct), but the HTTPException detail 'AI extraction failed' is fine — no leak. No change needed, just confirming intent."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration6.py (NEW: 25 tests — scan size cap 413 + latency guard, scan rate-limit 20-then-429 with dedicated seed user + cross-user isolation, LLM 502 no-leak surface, expenses amount/currency/receipt-size validation + regression create, recurring amount/currency/cadence validation + valid regression, CORS preflight (ACAO=*/ACAC absent/methods GET+POST+DELETE+OPTIONS), read-endpoint regression battery (auth/me, friends, groups, settlements, expenses, insights, trends, fx, receipt round-trip))"
+  ],
+  "success_rate": {"backend": "100% (119/119 full suite in serial via `pytest -n 0`; iter6 subset 25/25)", "frontend": "N/A - backend only per request"},
+  "seed_data_creation": "Reused primary seed user_test_fixture01 / test_token_abc / TEST_backend_tester@example.com from conftest. Added a module-scoped rl_user fixture inside test_iteration6.py that upserts a second user (RL_USER_ID=TEST_scan_rl_user_iter6, email=TEST_scan_rl_iter6@example.com, session_token=TEST_scan_rl_token_iter6) so the 21-call rate-limit test has an isolated per-user bucket; teardown deletes the user, its session, and any expenses. All test artefacts prefixed TEST_. Per-test _clean_user() truncates expenses/recurring where needed to keep assertions deterministic.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iteration 6 fully validated. Run: `cd /app/backend && pytest tests/ -n 0 -v` for deterministic serial (all 119 pass in ~3m13s). The rate-limit test alone takes ~110s because it fires 21 real LLM scans on tiny JPEGs; if EMERGENT_LLM_KEY quota is tight, this test consumes ~21 gemini-3-flash-preview requests per run. Rate-limit state is in-memory (_SCAN_HITS) — restarting the backend resets buckets, so iter6 can be safely retried after `sudo supervisorctl restart backend`. Size cap constant: MAX_RECEIPT_B64_LEN=5_500_000 (server.py L25). Hourly cap constant: SCAN_RATE_PER_HOUR=20 (server.py L26). Order-of-operations guaranteed by server.py L809-821: size-check (413) → rate-limit (429) → LLM call (200/502) — so an oversized request will NOT consume a slot. CORS: allow_credentials=False, methods=['GET','POST','DELETE','OPTIONS'], allow_origins=['*'], allow_headers=['*'] (server.py L913-920). Supported currencies: USD, INR, EUR, GBP, JPY. Supported cadences: monthly, weekly.",
+  "rca_of_issue": "No product bugs found. Only a test-authoring miss during first run: initial LLM-failure-surface test assumed the response would always be JSON with a 'detail' key, but when the primary user was already at its rate limit the response was a plain 429/text body, so `r.json()` raised JSONDecodeError. Fixed by reading `r.text` first, checking for stack-trace leaks on ANY body, and only attempting JSON parse when status is 502 (with try/except fallback). This makes the test tolerant of three legitimate outcomes: (a) 502 generic 'AI extraction failed', (b) 200 LLM tolerated garbage, (c) 429 already rate-limited — all acceptable as long as no server internals leak."
+}

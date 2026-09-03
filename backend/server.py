@@ -21,6 +21,14 @@ MONGO_URL = os.environ['MONGO_URL']
 DB_NAME = os.environ['DB_NAME']
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
 
+# Security limits
+MAX_RECEIPT_B64_LEN = 5_500_000  # ~4MB raw image
+SCAN_RATE_PER_HOUR = 20  # per user
+_SCAN_HITS: Dict[str, List[float]] = {}  # user_id -> [timestamps]
+_SCAN_LOCK = asyncio.Lock()
+
+SUPPORTED_CURRENCIES = ("USD", "INR", "EUR", "GBP", "JPY")
+
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
 
@@ -258,9 +266,6 @@ async def auth_logout(authorization: Optional[str] = Header(None)):
     return {"ok": True}
 
 
-SUPPORTED_CURRENCIES = ("USD", "INR", "EUR", "GBP", "JPY")
-
-
 @api_router.post("/auth/currency", response_model=UserPublic)
 async def update_currency(payload: CurrencyUpdate, user=Depends(get_current_user)):
     cur = (payload.currency or "").upper()
@@ -271,7 +276,6 @@ async def update_currency(payload: CurrencyUpdate, user=Depends(get_current_user
         user_id=user["user_id"], email=user["email"], name=user["name"],
         picture=user.get("picture"), currency=cur,
     )
-
 
 # ========================= Friends =========================
 @api_router.post("/friends", response_model=Friend)
@@ -385,6 +389,11 @@ async def materialize_recurring(user_id: str) -> int:
 
 @api_router.post("/recurring", response_model=Recurring)
 async def create_recurring(payload: RecurringCreate, user=Depends(get_current_user)):
+    if payload.amount is None or float(payload.amount) <= 0:
+        raise HTTPException(status_code=400, detail="amount must be > 0")
+    cur = (payload.currency or "USD").upper()
+    if cur not in SUPPORTED_CURRENCIES:
+        raise HTTPException(status_code=400, detail=f"currency must be one of {SUPPORTED_CURRENCIES}")
     rid = f"rec_{uuid.uuid4().hex[:12]}"
     if payload.cadence not in ("monthly", "weekly"):
         raise HTTPException(status_code=400, detail="cadence must be monthly or weekly")
@@ -399,7 +408,7 @@ async def create_recurring(payload: RecurringCreate, user=Depends(get_current_us
         start_dt = start_dt.replace(tzinfo=timezone.utc)
     doc = {
         "recurring_id": rid, "user_id": user["user_id"],
-        "amount": float(payload.amount), "currency": payload.currency,
+        "amount": float(payload.amount), "currency": cur,
         "category": payload.category, "merchant": payload.merchant,
         "notes": payload.notes, "cadence": payload.cadence,
         "next_run": start_dt.isoformat(), "active": True,
@@ -431,6 +440,13 @@ async def delete_recurring(recurring_id: str, user=Depends(get_current_user)):
 # ========================= Expenses =========================
 @api_router.post("/expenses", response_model=Expense)
 async def create_expense(payload: ExpenseCreate, user=Depends(get_current_user)):
+    if payload.amount is None or float(payload.amount) <= 0:
+        raise HTTPException(status_code=400, detail="amount must be > 0")
+    cur = (payload.currency or "USD").upper()
+    if cur not in SUPPORTED_CURRENCIES:
+        raise HTTPException(status_code=400, detail=f"currency must be one of {SUPPORTED_CURRENCIES}")
+    if payload.receipt_image_base64 and len(payload.receipt_image_base64) > MAX_RECEIPT_B64_LEN:
+        raise HTTPException(status_code=413, detail="Receipt image too large")
     expense_id = f"exp_{uuid.uuid4().hex[:12]}"
     date_str = payload.date or datetime.now(timezone.utc).isoformat()
     split_with = payload.split_with or []
@@ -461,7 +477,7 @@ async def create_expense(payload: ExpenseCreate, user=Depends(get_current_user))
 
     doc = {
         "expense_id": expense_id, "user_id": user["user_id"],
-        "amount": float(payload.amount), "currency": payload.currency,
+        "amount": float(payload.amount), "currency": cur,
         "category": payload.category, "merchant": payload.merchant,
         "notes": payload.notes, "date": date_str,
         "split_with": split_with,
@@ -790,6 +806,19 @@ async def scan_receipt(payload: ScanRequest, user=Depends(get_current_user)):
         raise HTTPException(status_code=500, detail="LLM key not configured")
     if not payload.image_base64:
         raise HTTPException(status_code=400, detail="image_base64 required")
+    if len(payload.image_base64) > MAX_RECEIPT_B64_LEN:
+        raise HTTPException(status_code=413, detail="Image too large")
+
+    # Per-user hourly rate limit
+    uid = user["user_id"]
+    now_ts = datetime.now(timezone.utc).timestamp()
+    async with _SCAN_LOCK:
+        hits = [t for t in _SCAN_HITS.get(uid, []) if now_ts - t < 3600]
+        if len(hits) >= SCAN_RATE_PER_HOUR:
+            _SCAN_HITS[uid] = hits
+            raise HTTPException(status_code=429, detail="Scan rate limit exceeded. Try again later.")
+        hits.append(now_ts)
+        _SCAN_HITS[uid] = hits
 
     system_msg = (
         "You are a receipt/invoice OCR extractor. Given an image of a receipt or invoice, "
@@ -810,9 +839,9 @@ async def scan_receipt(payload: ScanRequest, user=Depends(get_current_user)):
             text="Extract the receipt data as strict JSON as specified.",
             file_contents=[image],
         ))
-    except Exception as e:
+    except Exception:
         logger.exception("LLM scan failed")
-        raise HTTPException(status_code=500, detail=f"AI extraction failed: {str(e)}")
+        raise HTTPException(status_code=502, detail="AI extraction failed")
 
     import json, re
     text = (response_text or "").strip()
@@ -881,10 +910,11 @@ async def shutdown_db_client():
 
 app.include_router(api_router)
 
+# Bearer-token API only — no cookies. Keep origins open, disable credentials.
 app.add_middleware(
     CORSMiddleware,
-    allow_credentials=True,
+    allow_credentials=False,
     allow_origins=["*"],
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
