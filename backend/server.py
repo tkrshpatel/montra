@@ -76,6 +76,7 @@ class Expense(BaseModel):
     group_id: Optional[str] = None
     created_at: str
     is_split: bool = False
+    has_receipt: bool = False
 
 
 class FriendCreate(BaseModel):
@@ -468,9 +469,12 @@ async def create_expense(payload: ExpenseCreate, user=Depends(get_current_user))
         "group_id": payload.group_id,
         "is_split": bool(split_with) or bool(shares and len(shares) > 1),
         "created_at": datetime.now(timezone.utc).isoformat(),
+        "receipt_image_base64": payload.receipt_image_base64,
+        "has_receipt": bool(payload.receipt_image_base64),
     }
     await db.expenses.insert_one(doc)
     doc.pop("_id", None)
+    doc.pop("receipt_image_base64", None)
     return Expense(**{k: v for k, v in doc.items() if k in Expense.model_fields})
 
 
@@ -494,6 +498,72 @@ async def delete_expense(expense_id: str, user=Depends(get_current_user)):
     if res.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Expense not found")
     return {"ok": True}
+
+
+@api_router.get("/expenses/{expense_id}/receipt")
+async def get_expense_receipt(expense_id: str, user=Depends(get_current_user)):
+    exp = await db.expenses.find_one(
+        {"expense_id": expense_id, "user_id": user["user_id"]},
+        {"_id": 0, "receipt_image_base64": 1},
+    )
+    if not exp:
+        raise HTTPException(status_code=404, detail="Expense not found")
+    b64 = exp.get("receipt_image_base64")
+    if not b64:
+        raise HTTPException(status_code=404, detail="No receipt attached")
+    return {"image_base64": b64, "mime_type": "image/jpeg"}
+
+
+@api_router.get("/insights")
+async def insights(month: Optional[str] = None, user=Depends(get_current_user)):
+    """Monthly category breakdown in user's home currency.
+    month: YYYY-MM (defaults to current month)
+    """
+    home = user.get("currency", "USD")
+    now = datetime.now(timezone.utc)
+    if month:
+        try:
+            y, m = month.split("-")
+            year, mo = int(y), int(m)
+            if not (1 <= mo <= 12):
+                raise ValueError()
+        except Exception:
+            raise HTTPException(status_code=400, detail="month must be YYYY-MM")
+    else:
+        year, mo = now.year, now.month
+
+    cursor = db.expenses.find(
+        {"user_id": user["user_id"]},
+        {"_id": 0, "receipt_image_base64": 0},
+    )
+    totals: Dict[str, float] = {}
+    total = 0.0
+    count = 0
+    async for e in cursor:
+        try:
+            d = datetime.fromisoformat(e.get("date"))
+        except Exception:
+            continue
+        if d.year != year or d.month != mo:
+            continue
+        amt = await convert_amount(float(e.get("amount", 0)), e.get("currency", home), home)
+        cat = e.get("category") or "Other"
+        totals[cat] = round(totals.get(cat, 0.0) + amt, 2)
+        total += amt
+        count += 1
+
+    breakdown = sorted(
+        [{"category": k, "amount": round(v, 2), "pct": (v / total * 100) if total > 0 else 0}
+         for k, v in totals.items()],
+        key=lambda x: -x["amount"],
+    )
+    return {
+        "month": f"{year:04d}-{mo:02d}",
+        "currency": home,
+        "total": round(total, 2),
+        "count": count,
+        "breakdown": breakdown,
+    }
 
 
 # ========================= Settlements =========================

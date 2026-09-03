@@ -73,7 +73,17 @@ export default function Dashboard() {
           style={StyleSheet.absoluteFill}
         />
         <View style={styles.heroContent}>
-          <Text style={styles.heroLabel}>Spent this month</Text>
+          <View style={styles.heroTopRow}>
+            <Text style={styles.heroLabel}>Spent this month</Text>
+            <Pressable
+              onPress={() => router.push('/insights')}
+              style={styles.insightsBtn}
+              testID="open-insights-button"
+            >
+              <Feather name="bar-chart-2" size={14} color="#FFF" />
+              <Text style={styles.insightsBtnText}>Insights</Text>
+            </Pressable>
+          </View>
           <Text style={styles.heroAmount} testID="hero-amount">
             {sym}{totalThisMonth.toFixed(2)}
           </Text>
@@ -125,7 +135,24 @@ export default function Dashboard() {
             const convertedNeeded = item.currency !== currency;
             const conv = convertedNeeded ? convert(item.amount, item.currency, currency) : 0;
             return (
-              <View style={styles.row} testID={`expense-${item.expense_id}`}>
+              <Pressable
+                onPress={() => router.push({
+                  pathname: '/expense/[id]',
+                  params: {
+                    id: item.expense_id,
+                    amount: String(item.amount),
+                    currency: item.currency,
+                    category: item.category,
+                    merchant: item.merchant || '',
+                    notes: item.notes || '',
+                    date: item.date,
+                    has_receipt: (item as any).has_receipt ? '1' : '0',
+                    is_split: item.is_split ? '1' : '0',
+                  },
+                })}
+                style={styles.row}
+                testID={`expense-${item.expense_id}`}
+              >
                 <View style={[styles.rowIcon, { backgroundColor: meta.color + '22' }]}>
                   <Feather name={meta.icon as any} size={18} color={meta.color} />
                 </View>
@@ -136,6 +163,7 @@ export default function Dashboard() {
                   <Text style={styles.rowSub}>
                     {new Date(item.date).toLocaleDateString()}
                     {item.is_split ? '  \u2022  Split' : ''}
+                    {(item as any).has_receipt ? '  \u2022  \uD83D\uDCCE' : ''}
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
@@ -144,7 +172,7 @@ export default function Dashboard() {
                     <Text style={styles.rowSub}>{`\u2248 ${sym}${conv.toFixed(2)}`}</Text>
                   ) : null}
                 </View>
-              </View>
+              </Pressable>
             );
           }}
           ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}
@@ -170,6 +198,9 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
   },
   heroContent: { padding: SPACING.xl, paddingTop: SPACING.xl },
+  heroTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  insightsBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: SPACING.md, height: 30, borderRadius: RADIUS.pill, backgroundColor: 'rgba(255,255,255,0.2)' },
+  insightsBtnText: { color: '#FFF', fontSize: FONT.size.sm, fontWeight: '700' },
   heroLabel: { color: 'rgba(255,255,255,0.75)', fontSize: FONT.size.base, fontWeight: '500' },
   heroAmount: { color: '#FFF', fontSize: FONT.size.hero, fontWeight: '800', marginTop: SPACING.xs, letterSpacing: -1 },
   heroRow: { flexDirection: 'row', marginTop: SPACING.md, gap: SPACING.sm },

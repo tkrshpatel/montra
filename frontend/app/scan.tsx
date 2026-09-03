@@ -6,6 +6,7 @@ import { useState } from 'react';
 import Feather from '@react-native-vector-icons/feather';
 import * as ImagePicker from 'expo-image-picker';
 import * as Haptics from 'expo-haptics';
+import { setPendingReceipt } from '../src/pendingReceipt';
 import { api } from '../src/api';
 import { COLORS, SPACING, RADIUS, FONT } from '../src/theme';
 
@@ -61,6 +62,7 @@ export default function Scan() {
 
   const useResult = () => {
     if (!result) return;
+    if (base64) setPendingReceipt(base64, 'image/jpeg');
     router.replace({
       pathname: '/add-expense',
       params: {

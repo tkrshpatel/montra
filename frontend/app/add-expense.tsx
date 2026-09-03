@@ -1,12 +1,15 @@
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
+import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import Feather from '@react-native-vector-icons/feather';
 import * as Haptics from 'expo-haptics';
+import * as ImagePicker from 'expo-image-picker';
 import { api } from '../src/api';
 import { useAuth } from '../src/auth/AuthContext';
 import { COLORS, SPACING, RADIUS, FONT, CATEGORIES, CURRENCIES, currencySymbol } from '../src/theme';
+import { takePendingReceipt } from '../src/pendingReceipt';
 
 const EQUAL = 'equal' as const;
 const CUSTOM = 'custom' as const;
@@ -28,12 +31,36 @@ export default function AddExpense() {
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [splitMode, setSplitMode] = useState<typeof EQUAL | typeof CUSTOM>(EQUAL);
   const [shares, setShares] = useState<Record<string, string>>({ self: '1' }); // string for TextInput
+  const [receiptBase64, setReceiptBase64] = useState<string | null>(null);
+  const [receiptUri, setReceiptUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     api.listFriends().then(setFriends).catch(() => {});
     api.listGroups().then(setGroups).catch(() => {});
+    const pending = takePendingReceipt();
+    if (pending) {
+      setReceiptBase64(pending.base64);
+      setReceiptUri(`data:${pending.mime};base64,${pending.base64}`);
+    }
   }, []);
+
+  const attachPhoto = async (source: 'camera' | 'gallery') => {
+    const perm = source === 'camera'
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) return;
+    const opts: ImagePicker.ImagePickerOptions = { mediaTypes: 'images', quality: 0.7, base64: true, allowsEditing: false };
+    const res = source === 'camera'
+      ? await ImagePicker.launchCameraAsync(opts)
+      : await ImagePicker.launchImageLibraryAsync(opts);
+    if (res.canceled || !res.assets?.length) return;
+    const a = res.assets[0];
+    setReceiptUri(a.uri);
+    setReceiptBase64(a.base64 || null);
+  };
+
+  const clearPhoto = () => { setReceiptUri(null); setReceiptBase64(null); };
 
   useEffect(() => {
     if (params.amount) setAmount(String(params.amount));
@@ -120,6 +147,7 @@ export default function AddExpense() {
       } else {
         body.split_with = selectedIds;
       }
+      if (receiptBase64) body.receipt_image_base64 = receiptBase64;
       await api.createExpense(body);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       router.back();
@@ -323,6 +351,28 @@ export default function AddExpense() {
           multiline
           testID="notes-input"
         />
+
+        {/* Receipt photo */}
+        <Text style={styles.label}>Receipt (optional)</Text>
+        {receiptUri ? (
+          <View style={styles.receiptPreview} testID="receipt-preview">
+            <Image source={{ uri: receiptUri }} style={StyleSheet.absoluteFill} contentFit="cover" />
+            <Pressable onPress={clearPhoto} style={styles.receiptClear} testID="remove-receipt-button">
+              <Feather name="x" size={16} color="#FFF" />
+            </Pressable>
+          </View>
+        ) : (
+          <View style={styles.photoRow}>
+            <Pressable onPress={() => attachPhoto('camera')} style={styles.photoBtn} testID="attach-photo-camera">
+              <Feather name="camera" size={16} color={COLORS.onSurface} />
+              <Text style={styles.photoText}>Photo</Text>
+            </Pressable>
+            <Pressable onPress={() => attachPhoto('gallery')} style={styles.photoBtn} testID="attach-photo-gallery">
+              <Feather name="image" size={16} color={COLORS.onSurface} />
+              <Text style={styles.photoText}>Upload</Text>
+            </Pressable>
+          </View>
+        )}
       </ScrollView>
 
       <View style={[styles.saveBar, { paddingBottom: insets.bottom + SPACING.md }]}>
@@ -374,6 +424,12 @@ const styles = StyleSheet.create({
   shareLabel: { flex: 1, fontSize: FONT.size.base, color: COLORS.onSurface, fontWeight: '600' },
   shareInput: { width: 64, height: 36, borderRadius: RADIUS.sm, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: SPACING.sm, textAlign: 'center', fontWeight: '700', color: COLORS.onSurface },
   sharePreview: { minWidth: 78, textAlign: 'right', fontSize: FONT.size.base, fontWeight: '700', color: COLORS.brand },
+
+  photoRow: { flexDirection: 'row', gap: SPACING.sm },
+  photoBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 48, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceSecondary },
+  photoText: { fontWeight: '700', color: COLORS.onSurface },
+  receiptPreview: { height: 180, borderRadius: RADIUS.md, overflow: 'hidden', backgroundColor: COLORS.surfaceSecondary },
+  receiptClear: { position: 'absolute', top: 8, right: 8, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
 
   saveBar: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border },
   saveBtn: { backgroundColor: COLORS.brand, height: 54, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },

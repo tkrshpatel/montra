@@ -47,6 +47,8 @@ function AuthGate() {
       <Stack.Screen name="groups" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="recurring" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
       <Stack.Screen name="settle" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="insights" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+      <Stack.Screen name="expense/[id]" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
     </Stack>
   );
 }

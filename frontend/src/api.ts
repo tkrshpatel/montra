@@ -56,6 +56,9 @@ export const api = {
 
   fx: () => req('/fx'),
 
+  insights: (month?: string) => req(`/insights${month ? `?month=${encodeURIComponent(month)}` : ''}`),
+  getReceipt: (id: string) => req(`/expenses/${id}/receipt`),
+
   scan: (image_base64: string, mime_type = 'image/jpeg') =>
     req('/scan', { method: 'POST', body: JSON.stringify({ image_base64, mime_type }) }),
 };
