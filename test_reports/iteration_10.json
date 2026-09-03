@@ -1,0 +1,30 @@
+{
+  "summary": "SplitSync Iteration 10 (deploy-prep #2: made Emergent auth session URL env-configurable via EMERGENT_AUTH_SESSION_URL with default fallback in /app/backend/server.py lines 23-26). Backend-only regression as requested. Backend restarted cleanly (`sudo supervisorctl restart backend` → GET /api/ 200). Full 119/119 pytest suite passes in serial (`pytest -n 0`, 199.77s). Verified default fallback resolves to 'https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data' when env var is unset. /api/auth/session behavior unchanged — HTTP client still uses the module-level constant which now resolves via os.environ.get with hardcoded default. No new env keys required in /app/backend/.env; existing MONGO_URL/DB_NAME/EMERGENT_LLM_KEY untouched. No frontend testing performed per review-request scope (testing_type=backend only).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_api.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_iteration4.py",
+    "/app/backend/tests/test_iteration5.py",
+    "/app/backend/tests/test_iteration6.py",
+    "/app/test_reports/pytest/iteration10_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "EMERGENT_AUTH_SESSION_URL correctly uses os.environ.get with a hardcoded default — safe fallback pattern (server.py:23-26).",
+    "Refactor is behavior-preserving: same URL string; only source-of-truth changed from literal to env-with-default. No test changes required.",
+    "server.py still ~921 lines — router split remains outstanding carry-over from iter6-9.",
+    "_SCAN_HITS rate-limit bucket remains per-process in-memory — Redis/Mongo TTL still recommended for horizontal scale (carry-over).",
+    "Currency whitelist duplicated across /expenses, /recurring, /auth/currency — extract helper (carry-over from iter6-9)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (119/119 full suite serial `pytest -n 0`, 199.77s)", "frontend": "N/A — backend-only scope per review request"},
+  "seed_data_creation": "Reused existing seed user_test_fixture01 / test_token_abc (conftest.py) and module-scoped rl_user (TEST_scan_rl_user_iter6). No new seed data for iter10.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter10 is deploy-prep only: EMERGENT_AUTH_SESSION_URL is now env-configurable with a hardcoded default fallback (server.py:23-26). No app-behavior change. Backend regression path: `sudo supervisorctl restart backend && cd /app/backend && pytest tests/ -n 0 -v --junitxml=/app/test_reports/pytest/iterationN_results.xml` (~3m20s). If /api/scan rate-limit test flakes at call 1, restart backend to clear in-memory _SCAN_HITS.",
+  "rca_of_issue": "No issues found in iter10. Env-var refactor with default fallback is a no-op at runtime; verified default resolves to the original hardcoded URL when EMERGENT_AUTH_SESSION_URL is unset."
+}

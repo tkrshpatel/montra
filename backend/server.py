@@ -20,6 +20,10 @@ load_dotenv(ROOT_DIR / '.env')
 MONGO_URL = os.environ['MONGO_URL']
 DB_NAME = os.environ['DB_NAME']
 EMERGENT_LLM_KEY = os.environ.get('EMERGENT_LLM_KEY', '')
+EMERGENT_AUTH_SESSION_URL = os.environ.get(
+    'EMERGENT_AUTH_SESSION_URL',
+    'https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data',
+)
 
 # Security limits
 MAX_RECEIPT_B64_LEN = 5_500_000  # ~4MB raw image
@@ -204,7 +208,7 @@ async def auth_session(payload: SessionExchangeRequest):
     try:
         async with httpx.AsyncClient(timeout=15.0) as http_client:
             resp = await http_client.get(
-                "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
+                EMERGENT_AUTH_SESSION_URL,
                 headers={"X-Session-ID": session_id},
             )
     except Exception:

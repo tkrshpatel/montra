@@ -1,0 +1,30 @@
+{
+  "summary": "SplitSync Iteration 9 (deploy-prep: pinned httpx==0.28.1 in requirements.txt via pip freeze; removed .env from .gitignore). Backend-only regression as requested. Backend boots cleanly after `sudo supervisorctl restart backend` (probe GET /api/ → 200). Full 119/119 pytest suite passes in serial (`pytest -n 0`, 144.03s) covering: /api/auth/session, /api/auth/me (Bearer required), /api/expenses CRUD + validation (amount>0, currency USD/INR/EUR/GBP/JPY whitelist, receipt size cap 413), /api/friends CRUD, /api/groups CRUD, /api/settlements + balance subtraction, /api/recurring materialization + validation (amount, currency, cadence monthly/weekly), /api/scan (413 size cap + 429 per-user hourly rate limit at the 21st call + generic 502 surface with no stack leak), /api/insights (default + specific month + FX + empty month + auth), /api/trends (2–24 month bounds, FX conversion, per-month distribution), /api/fx (USD/INR/EUR/GBP/JPY), /api/expenses/{id}/receipt round-trip, CORS preflight with allow_credentials=false. httpx import validated at runtime: `python -c 'import httpx; print(httpx.__version__)'` → 0.28.1. Only stderr entries in backend.err.log are the intentional LLM BadRequestError from TestScanLLMFailureSurface exercising the 502 catch path — expected, not a boot regression. No frontend testing was performed per review-request scope (testing_type=backend only).",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {"ui_bugs": [], "integration_issues": [], "design_issues": [], "react_native_issues": []},
+  "test_report_links": [
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_api.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_iteration4.py",
+    "/app/backend/tests/test_iteration5.py",
+    "/app/backend/tests/test_iteration6.py",
+    "/app/test_reports/pytest/iteration9_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "requirements.txt now explicitly pins httpx==0.28.1 (previously implicit transitive dep). Boot verified — no missing extras, no version conflict with openai==1.99.9 / litellm bundle.",
+    ".env removal from .gitignore is deploy-prep only and does not affect runtime behavior; ensure production secrets are still supplied via platform env-vars rather than committed .env values (best practice reminder — no action needed for tests).",
+    "server.py still ~921 lines — router split remains outstanding carry-over from iter6/7/8.",
+    "_SCAN_HITS rate-limit bucket remains per-process in-memory — Redis/Mongo TTL still recommended for horizontal scale (carry-over).",
+    "Currency whitelist duplicated across /expenses, /recurring, /auth/currency — extract helper (carry-over from iter6/7/8)."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "100% (119/119 full suite serial `pytest -n 0`, 144.03s)", "frontend": "N/A — backend-only scope per review request"},
+  "seed_data_creation": "Reused existing seed user_test_fixture01 / test_token_abc (conftest.py) and module-scoped rl_user (TEST_scan_rl_user_iter6) from test_iteration6.py. No new seed data for iter9.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter9 is deploy-prep only: httpx pinned in requirements.txt and .env removed from .gitignore. No server.py or app-code changes. Backend regression path is `sudo supervisorctl restart backend && cd /app/backend && pytest tests/ -n 0 -v --junitxml=/app/test_reports/pytest/iterationN_results.xml` (~2m24s). If rate-limit test flakes at call 1, restart backend to clear in-memory _SCAN_HITS. httpx 0.28.1 verified compatible with openai==1.99.9 and litellm==1.80.0 bundle used by emergentintegrations.",
+  "rca_of_issue": "No issues found in iter9. httpx pin is a no-op at runtime (already installed transitively as 0.28.1); explicit pin protects future rebuilds from breakage."
+}
