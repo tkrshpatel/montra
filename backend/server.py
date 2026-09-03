@@ -118,6 +118,7 @@ class Friend(BaseModel):
     name: str
     email: Optional[str] = None
     created_at: str
+    settled_through: Optional[str] = None
 
 
 class ScanRequest(BaseModel):
@@ -451,6 +452,124 @@ async def delete_friend(friend_id: str, user=Depends(get_current_user)):
     return {"ok": True}
 
 
+@api_router.get("/friends/{friend_id}/history")
+async def friend_history(friend_id: str, user=Depends(get_current_user)):
+    """Timeline of split expenses shared with this friend + settlements recorded.
+
+    Includes ALL history (not filtered by settled_through) so the user can see the
+    complete relationship. Includes a per-item `home_amount` in the user's currency
+    and a `settled` flag for items dated at/before the friend's `settled_through`.
+    """
+    home = user.get("currency", "USD")
+    friend = await db.friends.find_one(
+        {"friend_id": friend_id, "user_id": user["user_id"]}, {"_id": 0}
+    )
+    if not friend:
+        raise HTTPException(status_code=404, detail="Friend not found")
+    cutoff = _parse_dt(friend.get("settled_through"))
+
+    # Split expenses that include this friend
+    exp_items: List[Dict[str, Any]] = []
+    exp_cursor = db.expenses.find(
+        {
+            "user_id": user["user_id"],
+            "is_split": True,
+            "$or": [
+                {"split_with": friend_id},
+                {"shares.participant_id": friend_id},
+            ],
+        },
+        {"_id": 0, "receipt_image_base64": 0},
+    )
+    async for exp in exp_cursor:
+        # Compute this friend's share for this expense
+        shares = exp.get("shares")
+        friend_share_amt = 0.0
+        counted = False
+        if shares:
+            total_w = sum(float(s.get("share", 0)) for s in shares)
+            if total_w > 0:
+                for s in shares:
+                    if s.get("participant_id") == friend_id:
+                        w = float(s.get("share", 0))
+                        if w > 0:
+                            friend_share_amt = float(exp["amount"]) * (w / total_w)
+                            counted = True
+                            break
+        if not counted:
+            split_with = exp.get("split_with") or []
+            if friend_id in split_with:
+                friend_share_amt = float(exp["amount"]) / (1 + len(split_with))
+                counted = True
+        if not counted:
+            continue
+        home_amount = await convert_amount(friend_share_amt, exp.get("currency", home), home)
+        exp_dt = _parse_dt(exp.get("created_at")) or _parse_dt(exp.get("date"))
+        exp_items.append({
+            "type": "expense",
+            "id": exp.get("expense_id"),
+            "date": exp.get("date"),
+            "created_at": exp.get("created_at"),
+            "merchant": exp.get("merchant"),
+            "category": exp.get("category"),
+            "notes": exp.get("notes"),
+            "amount": float(exp.get("amount", 0)),
+            "currency": exp.get("currency", home),
+            "friend_share": round(friend_share_amt, 2),
+            "home_amount": round(home_amount, 2),
+            "settled": bool(cutoff and exp_dt and exp_dt <= cutoff),
+        })
+
+    # Settlements with this friend
+    stl_cursor = db.settlements.find(
+        {"user_id": user["user_id"], "friend_id": friend_id},
+        {"_id": 0},
+    )
+    stl_items: List[Dict[str, Any]] = []
+    async for s in stl_cursor:
+        home_amount = await convert_amount(float(s.get("amount", 0)), s.get("currency", home), home)
+        s_dt = _parse_dt(s.get("created_at"))
+        stl_items.append({
+            "type": "settlement",
+            "id": s.get("settlement_id"),
+            "date": s.get("created_at"),
+            "created_at": s.get("created_at"),
+            "amount": float(s.get("amount", 0)),
+            "currency": s.get("currency", home),
+            "note": s.get("note"),
+            "home_amount": round(home_amount, 2),
+            "settled": bool(cutoff and s_dt and s_dt <= cutoff),
+        })
+
+    timeline = exp_items + stl_items
+    # Sort newest first by created_at (fallback to date)
+    def _key(x: Dict[str, Any]) -> str:
+        return x.get("created_at") or x.get("date") or ""
+    timeline.sort(key=_key, reverse=True)
+
+    # Current net (post-cutoff) balance in home currency
+    net_home = 0.0
+    for it in timeline:
+        if it.get("settled"):
+            continue
+        if it["type"] == "expense":
+            net_home += float(it["home_amount"])
+        else:
+            net_home -= float(it["home_amount"])
+
+    return {
+        "friend": {
+            "friend_id": friend["friend_id"],
+            "name": friend["name"],
+            "email": friend.get("email"),
+            "settled_through": friend.get("settled_through"),
+        },
+        "currency": home,
+        "net_home": round(net_home, 2),
+        "timeline": timeline,
+    }
+
+
 # ========================= Groups =========================
 @api_router.post("/groups", response_model=Group)
 async def create_group(payload: GroupCreate, user=Depends(get_current_user)):
@@ -775,6 +894,78 @@ async def trends(months: int = 6, user=Depends(get_current_user)):
 
 
 # ========================= Settlements =========================
+async def _recompute_settled_through(user_id: str, friend_id: str, home: str) -> Optional[str]:
+    """Walk this friend's split-expenses + settlements chronologically. The
+    "settled_through" cutoff is the timestamp of the LATEST settlement whose
+    payment brought the running balance to <= 0 (books cleared). Partial
+    settlements do NOT move the cutoff. Returns the new cutoff (ISO) or None.
+    """
+    events: List[Dict[str, Any]] = []
+    exp_cursor = db.expenses.find(
+        {
+            "user_id": user_id,
+            "is_split": True,
+            "$or": [
+                {"split_with": friend_id},
+                {"shares.participant_id": friend_id},
+            ],
+        },
+        {"_id": 0, "receipt_image_base64": 0},
+    )
+    async for exp in exp_cursor:
+        share_amt = 0.0
+        counted = False
+        shares = exp.get("shares")
+        if shares:
+            total_w = sum(float(s.get("share", 0)) for s in shares)
+            if total_w > 0:
+                for s in shares:
+                    if s.get("participant_id") == friend_id:
+                        w = float(s.get("share", 0))
+                        if w > 0:
+                            share_amt = float(exp["amount"]) * (w / total_w)
+                            counted = True
+                            break
+        if not counted:
+            sw = exp.get("split_with") or []
+            if friend_id in sw:
+                share_amt = float(exp["amount"]) / (1 + len(sw))
+                counted = True
+        if not counted:
+            continue
+        home_amt = await convert_amount(share_amt, exp.get("currency", home), home)
+        ts = exp.get("created_at") or exp.get("date") or ""
+        events.append({"type": "expense", "ts": ts, "home_amt": home_amt})
+
+    stl_cursor = db.settlements.find(
+        {"user_id": user_id, "friend_id": friend_id}, {"_id": 0}
+    )
+    async for s in stl_cursor:
+        home_amt = await convert_amount(float(s.get("amount", 0)), s.get("currency", home), home)
+        events.append({"type": "settlement", "ts": s.get("created_at", ""), "home_amt": home_amt})
+
+    events.sort(key=lambda e: e.get("ts") or "")
+
+    running = 0.0
+    cutoff: Optional[str] = None
+    for ev in events:
+        if ev["type"] == "expense":
+            running += ev["home_amt"]
+        else:
+            running -= ev["home_amt"]
+            # Only advance the cutoff on an EXACT clearance (within tolerance).
+            # Overpayment ($ paid > $ owed) leaves the cutoff untouched so the
+            # residual negative balance surfaces via /api/balances naturally.
+            if abs(running) <= 0.005:
+                cutoff = ev["ts"]
+                running = 0.0
+    await db.friends.update_one(
+        {"friend_id": friend_id, "user_id": user_id},
+        {"$set": {"settled_through": cutoff}},
+    )
+    return cutoff
+
+
 @api_router.post("/settlements", response_model=Settlement)
 async def create_settlement(payload: SettlementCreate, user=Depends(get_current_user)):
     if payload.amount <= 0:
@@ -783,13 +974,18 @@ async def create_settlement(payload: SettlementCreate, user=Depends(get_current_
     if not f:
         raise HTTPException(status_code=404, detail="Friend not found")
     sid = f"stl_{uuid.uuid4().hex[:12]}"
+    created_at = datetime.now(timezone.utc).isoformat()
     doc = {
         "settlement_id": sid, "user_id": user["user_id"],
         "friend_id": payload.friend_id, "amount": float(payload.amount),
         "currency": payload.currency, "note": payload.note,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": created_at,
     }
     await db.settlements.insert_one(doc)
+    # Recompute the friend's "books closed" cutoff. Only full-clearance
+    # settlements advance the cutoff; partial payments leave it untouched.
+    home = user.get("currency", "USD")
+    await _recompute_settled_through(user["user_id"], payload.friend_id, home)
     doc.pop("_id", None)
     return Settlement(**doc)
 
@@ -803,9 +999,16 @@ async def list_settlements(user=Depends(get_current_user)):
 
 @api_router.delete("/settlements/{settlement_id}")
 async def delete_settlement(settlement_id: str, user=Depends(get_current_user)):
-    res = await db.settlements.delete_one({"settlement_id": settlement_id, "user_id": user["user_id"]})
-    if res.deleted_count == 0:
+    # Fetch first so we know the friend_id for cutoff recompute
+    doc = await db.settlements.find_one({"settlement_id": settlement_id, "user_id": user["user_id"]}, {"_id": 0})
+    if not doc:
         raise HTTPException(status_code=404, detail="Settlement not found")
+    await db.settlements.delete_one({"settlement_id": settlement_id, "user_id": user["user_id"]})
+    home = user.get("currency", "USD")
+    try:
+        await _recompute_settled_through(user["user_id"], doc.get("friend_id"), home)
+    except Exception as e:
+        logger.warning(f"recompute settled_through after delete failed: {e}")
     return {"ok": True}
 
 
@@ -891,12 +1094,29 @@ async def fx(user=Depends(get_current_user)):
 
 
 # ========================= Balances =========================
+def _parse_dt(s: Optional[str]) -> Optional[datetime]:
+    if not s:
+        return None
+    try:
+        d = datetime.fromisoformat(s)
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=timezone.utc)
+        return d
+    except Exception:
+        return None
+
+
 @api_router.get("/balances")
 async def get_balances(user=Depends(get_current_user)):
     home = user.get("currency", "USD")
     friends_cursor = db.friends.find({"user_id": user["user_id"]}, {"_id": 0})
     friends = await friends_cursor.to_list(1000)
     friend_map = {f["friend_id"]: f for f in friends}
+    # Per-friend "closed as of" timestamp — any expense/settlement before this
+    # is considered settled and excluded from the running balance.
+    settled_map: Dict[str, Optional[datetime]] = {
+        fid: _parse_dt(f.get("settled_through")) for fid, f in friend_map.items()
+    }
 
     balances: Dict[str, float] = {fid: 0.0 for fid in friend_map.keys()}
     exp_cursor = db.expenses.find(
@@ -904,6 +1124,7 @@ async def get_balances(user=Depends(get_current_user)):
         {"_id": 0, "receipt_image_base64": 0},
     )
     async for exp in exp_cursor:
+        exp_dt = _parse_dt(exp.get("created_at")) or _parse_dt(exp.get("date"))
         shares = exp.get("shares")
         if shares:
             total_w = sum(float(s.get("share", 0)) for s in shares)
@@ -916,10 +1137,14 @@ async def get_balances(user=Depends(get_current_user)):
                 w = float(s.get("share", 0))
                 if w <= 0:
                     continue
+                if pid not in balances:
+                    continue
+                cutoff = settled_map.get(pid)
+                if cutoff and exp_dt and exp_dt <= cutoff:
+                    continue
                 share_amt = float(exp["amount"]) * (w / total_w)
                 share_home = await convert_amount(share_amt, exp.get("currency", home), home)
-                if pid in balances:
-                    balances[pid] += share_home
+                balances[pid] += share_home
             continue
         split_with = exp.get("split_with") or []
         if not split_with:
@@ -927,15 +1152,25 @@ async def get_balances(user=Depends(get_current_user)):
         share = float(exp["amount"]) / (1 + len(split_with))
         share_home = await convert_amount(share, exp.get("currency", home), home)
         for fid in split_with:
-            if fid in balances:
-                balances[fid] += share_home
+            if fid not in balances:
+                continue
+            cutoff = settled_map.get(fid)
+            if cutoff and exp_dt and exp_dt <= cutoff:
+                continue
+            balances[fid] += share_home
 
     st_cursor = db.settlements.find({"user_id": user["user_id"]}, {"_id": 0})
     async for s in st_cursor:
         fid = s["friend_id"]
-        if fid in balances:
-            amt_home = await convert_amount(float(s["amount"]), s.get("currency", home), home)
-            balances[fid] -= amt_home
+        if fid not in balances:
+            continue
+        s_dt = _parse_dt(s.get("created_at"))
+        cutoff = settled_map.get(fid)
+        # Skip settlements at/before the cutoff (they were the ones that closed it).
+        if cutoff and s_dt and s_dt <= cutoff:
+            continue
+        amt_home = await convert_amount(float(s["amount"]), s.get("currency", home), home)
+        balances[fid] -= amt_home
 
     total_owed_to_me = 0.0
     per_friend = []

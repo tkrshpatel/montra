@@ -79,7 +79,10 @@ export default function Groups() {
           />
           <Text style={styles.label}>Members</Text>
           {friends.length === 0 ? (
-            <Text style={styles.hint}>Add friends first from the Friends tab.</Text>
+            <View style={styles.warnBox}>
+              <Feather name="info" size={16} color={colors.brand} />
+              <Text style={styles.warnText}>Add friends first from the Friends tab — groups can only be created with existing friends.</Text>
+            </View>
           ) : (
             <View style={{ gap: SPACING.sm }}>
               {friends.map(f => {
@@ -147,6 +150,8 @@ const makeStyles = (colors: any) => StyleSheet.create({
   label: { fontSize: FONT.size.sm, fontWeight: '700', color: colors.onSurfaceTertiary, textTransform: 'uppercase', marginBottom: SPACING.sm, marginTop: SPACING.md, letterSpacing: 0.5 },
   input: { backgroundColor: colors.surfaceSecondary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 52, fontSize: FONT.size.lg, color: colors.onSurface },
   hint: { fontSize: FONT.size.base, color: colors.onSurfaceTertiary },
+  warnBox: { flexDirection: 'row', gap: SPACING.sm, alignItems: 'flex-start', padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: colors.brandTertiary, borderWidth: 1, borderColor: colors.brand + '33' },
+  warnText: { flex: 1, fontSize: FONT.size.base, color: colors.brand, fontWeight: '600', lineHeight: 20 },
   memberRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1, borderColor: colors.border },
   memberName: { flex: 1, fontSize: FONT.size.lg, fontWeight: '600', color: colors.onSurface },
   avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },

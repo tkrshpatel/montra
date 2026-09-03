@@ -319,6 +319,7 @@ export default function AddExpense() {
         {/* Split mode + shares editor */}
         {selectedIds.length > 0 ? (
           <View>
+            <Text style={styles.label}>Split mode</Text>
             <View style={styles.splitModeRow}>
               {([EQUAL, CUSTOM] as const).map(m => (
                 <Pressable
@@ -327,8 +328,8 @@ export default function AddExpense() {
                   style={[styles.modeChip, splitMode === m && styles.modeChipActive]}
                   testID={`split-mode-${m}`}
                 >
-                  <Feather name={m === EQUAL ? 'divide' : 'sliders'} size={14} color={splitMode === m ? '#FFF' : colors.onSurfaceSecondary} />
-                  <Text style={[styles.modeText, splitMode === m && { color: '#FFF' }]}>
+                  <Feather name={m === EQUAL ? 'divide' : 'sliders'} size={14} color={splitMode === m ? colors.onBrand : colors.onSurfaceSecondary} />
+                  <Text style={[styles.modeText, splitMode === m && { color: colors.onBrand }]}>
                     {m === EQUAL ? 'Equal' : 'Custom ratio'}
                   </Text>
                 </Pressable>
@@ -445,9 +446,9 @@ const makeStyles = (colors: any) => StyleSheet.create({
   miniAvatarText: { color: '#FFF', fontWeight: '700', fontSize: FONT.size.sm },
   friendText: { fontWeight: '600', color: colors.onSurfaceSecondary },
 
-  splitModeRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.lg },
+  splitModeRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.xs },
   modeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, height: 36, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
-  modeChipActive: { backgroundColor: colors.onSurface, borderColor: colors.onSurface },
+  modeChipActive: { backgroundColor: colors.brand, borderColor: colors.brand },
   modeText: { fontWeight: '700', color: colors.onSurfaceSecondary },
 
   sharesCard: { marginTop: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: colors.surfaceSecondary, gap: SPACING.sm },

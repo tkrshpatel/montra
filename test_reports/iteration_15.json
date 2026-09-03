@@ -1,0 +1,49 @@
+{
+  "summary": "Iteration 15 (backend only): Verified the partial-settlement fix from iter14. Added /app/backend/tests/test_iteration15.py with 5 regression cases (a-e). SERIAL full-suite: 209 passed / 1 failed / 210 total (99.5%) — up from prior 199/205. All 5 legacy failures from iter14 (test_iteration2::test_balances_after_settlement, test_delete_settlement, test_iteration3::test_settlement_still_subtracts_after_shares, test_iteration4::test_settlement_subtracts, test_iteration5::test_settlement_still_subtracts, test_iteration13::test_balances_reduced_by_settlement) now PASS. Iter14 tests (9/9) still PASS. Only 1 NEW failure: iter15 test_e (overpayment) — the current _recompute_settled_through resets `running = 0.0` after clearance, discarding the overshoot, so /api/balances returns 0 instead of the expected -10 for overpaid amount. Cases (a)/(b)/(c)/(d) all PASS proving the core partial-settlement and delete-rollback fix works as intended. No new backend errors during the run (only pre-existing Gemini scan flakes from fake-image test payloads). PARALLEL xdist run has additional flakes on shared TEST_TOKEN fixture (worker teardown race) — not settlement-related, and not new to this iteration.",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {"endpoint": "POST /api/settlements (overpayment scenario)", "issue": "When a settlement over-pays the debt (e.g., owe 15 → settle 25), `_recompute_settled_through` correctly advances the cutoff to the overpay ts, BUT it resets `running = 0.0` after clearance in the sort loop (server.py:958). This discards the -10 overshoot, and /api/balances returns 0 for the friend instead of -10. Per review-request spec (test e), balance should be -10 and history net_home should be -10. Fix: in `_recompute_settled_through` loop, replace `running = 0.0` after `cutoff = ev['ts']` with either (a) leave `running` as-is (allow negative to carry) — but then partial-settle after overpay would misbehave — or (b) treat only the exact-clearance amount as the settlement in cutoff-comparison and let the leftover surface on /api/balances (which currently filters settlements at s_dt <= cutoff). Simpler alternative: change /api/balances so that the overpaying settlement's overshoot is credited even when filtered by cutoff (subtract max(0, s_amount - pre_settlement_running)). Not blocking — normal partial and full-clearance flows are correct.", "priority": "MEDIUM"},
+      {"endpoint": "POST /api/scan (rate limit) + xdist worker races", "issue": "Pre-existing: in-memory _SCAN_HITS bucket + shared TEST_TOKEN fixture leak state across xdist workers. Under parallel run, ~9 tests (iter3/4/5/6/api) sporadically fail with 401 or state-conflict (all PASS in serial run). Not a regression from this iteration. Move rate-limit bucket to Redis/Mongo TTL and migrate iter3-5 shared-fixture tests to isolated per-test users (as iter14/iter15 already do)."}
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration15.py",
+    "/app/test_reports/pytest/iteration15_serial.xml",
+    "/app/test_reports/pytest/iteration15_full.xml",
+    "/app/test_reports/pytest/iteration15_targeted.xml"
+  ],
+  "action_items": [
+    "MEDIUM: Fix overpayment case in server.py:_recompute_settled_through so /api/balances returns the negative overshoot (e.g., -10 when owe 15 settle 25). Currently resets running=0 on clearance, hiding the overpay. See iter15 test_e for repro. Suggestion: preserve `running` post-clearance so subsequent computations account for the negative, OR compute balance as `pre_cutoff_overshoot + post_cutoff_running` where pre_cutoff_overshoot = running just before reset (which will be negative for overpay).",
+    "MEDIUM (carry-over): Migrate iter3-5 legacy tests (which use shared TEST_TOKEN via auth_client fixture) to isolated per-test users like iter14/iter15's `fresh_iso_user`. Under xdist parallel runs, these tests race on shared user state and produce ~9 spurious failures. All pass serially.",
+    "LOW (carry-over): Move _SCAN_HITS in-memory rate-limit bucket to Redis/Mongo TTL for xdist safety.",
+    "LOW (carry-over): server.py is 1314 lines — consider splitting into routers (settlements/balances/friends/expenses/scan/auth)."
+  ],
+  "critical_code_review_comments": [
+    "server.py:897-963 `_recompute_settled_through` — the recompute is correct for partial payments (leaves cutoff untouched) and full-clearance (advances cutoff). BUG: line 958 `running = 0.0` after clearance clamps overpayment to zero. This is why iter15 test_e fails (owe 15, settle 25, expect balance -10, got 0). Fix: after `cutoff = ev['ts']` do NOT reset running — leave as-is (or use `running = min(running, 0.0)` to preserve only the overshoot on this friend's balance). Then downstream /api/balances (line 1160-1170) needs a way to surface the pre-cutoff overshoot, e.g., store it as `overshoot_at_cutoff` on the friend doc and add it to the running total.",
+    "server.py:966-987 `create_settlement` — clean fix. Correctly delegates cutoff computation to `_recompute_settled_through` after insert. Still returns 404 for unknown friend and 400 for non-positive amount. Good.",
+    "server.py:997-1009 `delete_settlement` — correctly recomputes cutoff after delete inside a try/except, logs on failure. Good defensive coding.",
+    "server.py:1167 `s_dt <= cutoff` — settlements at the cutoff are correctly filtered out (they're the ones that closed the books). This is intentional and matches the tests. Good.",
+    "server.py:520/541 history `settled` flag uses `<=` — matches balances semantics. Good.",
+    "No MongoDB `_id` leaks in the touched code paths (all queries project `_id: 0`).",
+    "server.py:1275/1299 uses deprecated `@app.on_event` — carry-over, not scope of this iter."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration15.py"
+  ],
+  "success_rate": {
+    "backend": "Serial full suite: 209/210 (99.5%). Iter14 (9/9). Iter15 (4/5) — only overpayment spec case fails. All 5 legacy iter14 regressions confirmed FIXED. Parallel xdist: 200/210 with 9 pre-existing shared-fixture flakes (not new).",
+    "frontend": "N/A (backend-only per E1 instruction)"
+  },
+  "seed_data_creation": "iter15 uses a per-test `fresh_iso_user` fixture (uid=user_test_i15_<hex>, tok=tok_i15_<hex>) that seeds users + user_sessions in mongo and cleans expenses/friends/groups/settlements/recurring/users/user_sessions in teardown. No cross-test leakage. No TEST_ residue after run.",
+  "retest_needed": false,
+  "should_main_agent_self_test": true,
+  "context_for_next_testing_agent": "iter15 confirms the iter14 partial-settlement regression is FIXED for the 5 originally failing legacy tests. The only outstanding item is the overpayment case (iter15 test_e) where /api/balances still returns 0 for overpaid friend (should be negative). This is a NEW minor bug in `_recompute_settled_through` at server.py:958 — `running=0` reset after clearance discards the overshoot. Root cause + patch suggestion is in action_items. Not blocking normal partial/full-clearance flows. If main agent patches this, re-run only iter15 test_e (fast, isolated). Parallel xdist flakes on iter3/4/5/6/api are shared-fixture races (auth_client via TEST_TOKEN) — orthogonal to settlements and pre-existing; treat as a separate hardening task.",
+  "rca_of_issue": "iter14 regression fix: The fix at server.py:897-963 correctly walks all split-expense + settlement events for a friend chronologically, tracks a running home-currency balance, and only advances the cutoff to a settlement's ts when the running balance clears (<= 0.005). Partial payments no longer advance the cutoff → pre-cutoff expenses stay visible in /api/balances → residual debt is preserved. delete_settlement also invokes the recompute, so removing a clearing settlement properly rolls the cutoff back (either to the prior clearing settlement, or unset). Verified by iter15 tests a-d and by all 5 previously-failing legacy tests now passing. Residual bug (test_e): line 958 resets `running = 0.0` after each clearance, so a settlement that overpays (e.g., settle 25 against a 15 debt) clamps running to 0 instead of -10, hiding the overshoot from /api/balances. Suggested patch: replace `running = 0.0` with `running = min(running, 0.0)` (or just remove the reset entirely) so the negative overshoot is carried forward. That's a small, isolated change and the test in iter15 encodes the expected behavior."
+}

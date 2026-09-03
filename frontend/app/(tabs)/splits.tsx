@@ -39,12 +39,12 @@ export default function Splits() {
       <View style={styles.headerRow}>
         <Text style={styles.header}>Splits</Text>
         <Pressable
-          onPress={() => router.push('/groups')}
+          onPress={() => router.push('/settlements')}
           style={styles.iconBtn}
-          testID="open-groups-button"
+          testID="open-settlements-button"
           hitSlop={10}
         >
-          <Feather name="folder" size={20} color={colors.onSurface} />
+          <Feather name="clock" size={20} color={colors.onSurface} />
         </Pressable>
       </View>
 
@@ -79,14 +79,18 @@ export default function Splits() {
             const positive = item.amount > 0.005;
             const negative = item.amount < -0.005;
             return (
-              <View style={styles.row} testID={`balance-${item.friend_id}`}>
+              <Pressable
+                onPress={() => router.push({ pathname: '/friend/[id]', params: { id: item.friend_id, name: item.name } })}
+                style={styles.row}
+                testID={`balance-${item.friend_id}`}
+              >
                 <View style={styles.avatar}>
                   <Text style={styles.avatarText}>{(item.name || '?').slice(0,1).toUpperCase()}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowName}>{item.name}</Text>
                   <Text style={styles.rowSub}>
-                    {positive ? 'owes you' : (negative ? 'overpaid' : 'settled')}
+                    {positive ? 'owes you' : (negative ? 'overpaid' : 'settled')} · view history
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: 6 }}>
@@ -95,7 +99,7 @@ export default function Splits() {
                   </Text>
                   {positive ? (
                     <Pressable
-                      onPress={() => router.push({ pathname: '/settle', params: { friend_id: item.friend_id, name: item.name, amount: String(item.amount) } })}
+                      onPress={(e) => { e.stopPropagation?.(); router.push({ pathname: '/settle', params: { friend_id: item.friend_id, name: item.name, amount: String(item.amount) } }); }}
                       style={styles.settleBtn}
                       testID={`settle-${item.friend_id}`}
                     >
@@ -104,7 +108,7 @@ export default function Splits() {
                     </Pressable>
                   ) : null}
                 </View>
-              </View>
+              </Pressable>
             );
           }}
           ItemSeparatorComponent={() => <View style={{ height: SPACING.sm }} />}

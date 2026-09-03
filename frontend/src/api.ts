@@ -73,6 +73,7 @@ export const api = {
   createFriend: (data: any) =>
     req('/friends', { method: 'POST', body: JSON.stringify(data) }),
   deleteFriend: (id: string) => req(`/friends/${id}`, { method: 'DELETE' }),
+  friendHistory: (id: string) => req(`/friends/${id}/history`),
 
   balances: () => req('/balances'),
 

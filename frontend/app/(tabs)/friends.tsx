@@ -36,25 +36,30 @@ export default function Friends() {
     <View style={[styles.root, { paddingTop: insets.top }]} testID="friends-screen">
       <View style={styles.headerRow}>
         <Text style={styles.header}>Friends</Text>
-        <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
+        <View style={{ flexDirection: 'row', gap: SPACING.sm, alignItems: 'center' }}>
           <Pressable
             onPress={() => router.push('/groups')}
-            style={styles.addBtn}
+            style={styles.groupsBtn}
             testID="open-groups-from-friends"
+            hitSlop={8}
           >
-            <Feather name="folder" size={16} color={colors.onSurface} />
-            <Text style={styles.addBtnText}>Groups</Text>
+            <Feather name="folder-plus" size={16} color={colors.brand} />
+            <Text style={styles.groupsBtnText}>Groups</Text>
           </Pressable>
           <Pressable
             onPress={() => router.push('/add-friend')}
             style={styles.addBtn}
             testID="add-friend-button"
+            hitSlop={8}
           >
-            <Feather name="plus" size={18} color={colors.onSurface} />
-            <Text style={styles.addBtnText}>Add</Text>
+            <Feather name="user-plus" size={16} color="#FFF" />
+            <Text style={styles.addBtnText}>Add friend</Text>
           </Pressable>
         </View>
       </View>
+      {friends.length > 0 ? (
+        <Text style={styles.subhint}>Tip: create a group from the Groups button to split expenses across multiple friends.</Text>
+      ) : null}
 
       {loading ? (
         <View style={styles.center}><ActivityIndicator color={colors.brand} /></View>
@@ -99,10 +104,13 @@ export default function Friends() {
 
 const makeStyles = (colors: any) => StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.surface },
-  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: SPACING.lg },
+  headerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: SPACING.md },
   header: { fontSize: FONT.size.xxxl, fontWeight: '800', color: colors.onSurface, letterSpacing: -0.5 },
-  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.surfaceSecondary, paddingHorizontal: SPACING.md, height: 36, borderRadius: RADIUS.pill },
-  addBtnText: { fontWeight: '600', color: colors.onSurface },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.brand, paddingHorizontal: SPACING.md, height: 36, borderRadius: RADIUS.pill },
+  addBtnText: { fontWeight: '700', color: '#FFF', fontSize: FONT.size.base },
+  groupsBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.brandTertiary, paddingHorizontal: SPACING.md, height: 36, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: colors.brandTertiary },
+  groupsBtnText: { fontWeight: '700', color: colors.brand, fontSize: FONT.size.base },
+  subhint: { paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, fontSize: FONT.size.sm, color: colors.onSurfaceTertiary },
   row: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#FFF', fontWeight: '700', fontSize: FONT.size.lg },
