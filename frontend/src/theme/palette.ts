@@ -29,6 +29,8 @@ export type Palette = {
   heroOverlayBottom: string;
   // Shadows (rgba strings)
   shadow: string;
+  // Tinted screen background (for hero-like screens)
+  tintedBg: string;
 };
 
 export const LIGHT: Palette = {
@@ -61,6 +63,7 @@ export const LIGHT: Palette = {
   heroOverlayBottom: 'rgba(11,11,15,0.82)',
 
   shadow: 'rgba(11,11,15,0.08)',
+  tintedBg: '#F0F5F1',
 };
 
 export const DARK: Palette = {
@@ -93,4 +96,5 @@ export const DARK: Palette = {
   heroOverlayBottom: 'rgba(0,0,0,0.90)',
 
   shadow: 'rgba(0,0,0,0.45)',
+  tintedBg: '#101319',
 };

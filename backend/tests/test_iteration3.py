@@ -197,7 +197,10 @@ class TestFXExpanded:
         assert abs(float(rates["USD"]) - 1.0) < 1e-9
         assert float(rates["INR"]) > 1.0
         assert float(rates["JPY"]) > 1.0
-        assert data.get("updated_at")
+        # New shape (iter 11): snapshot_date + refreshed_today
+        sd = data.get("snapshot_date")
+        assert isinstance(sd, str) and len(sd) == 10
+        assert isinstance(data.get("refreshed_today"), bool)
 
 
 # ---------- Regression: scan endpoint still exists (no LLM call, just auth wiring) ----------

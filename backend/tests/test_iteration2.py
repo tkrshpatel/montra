@@ -29,7 +29,11 @@ class TestFX:
         assert abs(float(rates["USD"]) - 1.0) < 1e-9
         assert float(rates["INR"]) > 1.0
         assert float(rates["EUR"]) > 0.0
-        assert data.get("updated_at")
+        # New shape (iter 11): snapshot_date (YYYY-MM-DD) + refreshed_today bool
+        sd = data.get("snapshot_date")
+        assert isinstance(sd, str) and len(sd) == 10 and sd[4] == "-" and sd[7] == "-"
+        assert "refreshed_today" in data
+        assert isinstance(data["refreshed_today"], bool)
 
 
 # ---------- Groups ----------

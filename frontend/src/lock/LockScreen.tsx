@@ -29,7 +29,7 @@ export default function LockScreen() {
         <View style={styles.iconWrap}>
           <Feather name="lock" size={44} color={colors.brand} />
         </View>
-        <Text style={styles.title}>SplitSync is locked</Text>
+        <Text style={styles.title}>Montra is locked</Text>
         <Text style={styles.sub}>
           {tried ? 'Try again to unlock' : 'Use biometrics to unlock'}
         </Text>

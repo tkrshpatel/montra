@@ -71,7 +71,7 @@ export function LockProvider({ children, isLoggedIn }: { children: React.ReactNo
     if (Platform.OS === 'web') { setLocked(false); return true; }
     try {
       const res = await LocalAuthentication.authenticateAsync({
-        promptMessage: 'Unlock SplitSync',
+        promptMessage: 'Unlock Montra',
         cancelLabel: 'Cancel',
         disableDeviceFallback: false,
       });

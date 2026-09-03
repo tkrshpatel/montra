@@ -711,6 +711,22 @@ async def get_rates() -> Dict[str, float]:
             return fallback
 
 
+async def get_rates_for_user(user: Dict[str, Any]) -> Dict[str, Any]:
+    """Return the FX snapshot for this user for TODAY (UTC), refreshing if stale.
+    Returns {rates, snapshot_date, refreshed_today}
+    """
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    snap = user.get("fx_snapshot") or {}
+    if snap.get("date") == today and isinstance(snap.get("rates"), dict):
+        return {"rates": snap["rates"], "snapshot_date": today, "refreshed_today": False}
+    rates = await get_rates()
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"fx_snapshot": {"date": today, "rates": rates}}},
+    )
+    return {"rates": rates, "snapshot_date": today, "refreshed_today": True}
+
+
 async def convert_amount(amount: float, src: str, dst: str) -> float:
     src = (src or "USD").upper()
     dst = (dst or "USD").upper()
@@ -725,12 +741,12 @@ async def convert_amount(amount: float, src: str, dst: str) -> float:
 
 @api_router.get("/fx")
 async def fx(user=Depends(get_current_user)):
-    rates = await get_rates()
-    ts = _FX_CACHE.get("updated_at")
+    snap = await get_rates_for_user(user)
     return {
         "base": "USD",
-        "rates": rates,
-        "updated_at": ts.isoformat() if ts else None,
+        "rates": snap["rates"],
+        "snapshot_date": snap["snapshot_date"],
+        "refreshed_today": snap["refreshed_today"],
     }
 
 
@@ -881,7 +897,7 @@ async def scan_receipt(payload: ScanRequest, user=Depends(get_current_user)):
 # ========================= Misc =========================
 @api_router.get("/")
 async def root():
-    return {"message": "SplitSync API", "ok": True}
+    return {"message": "Montra API", "ok": True}
 
 
 @app.on_event("startup")

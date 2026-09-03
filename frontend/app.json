@@ -13,7 +13,7 @@
       "infoPlist": {
         "NSCameraUsageDescription": "Scan receipts to log expenses",
         "NSPhotoLibraryUsageDescription": "Pick a receipt to scan",
-        "NSFaceIDUsageDescription": "Unlock SplitSync with Face ID"
+        "NSFaceIDUsageDescription": "Unlock Montra with Face ID"
       }
     },
     "android": {
@@ -51,7 +51,7 @@
       [
         "expo-local-authentication",
         {
-          "faceIDPermission": "Unlock SplitSync with Face ID"
+          "faceIDPermission": "Unlock Montra with Face ID"
         }
       ]
     ],

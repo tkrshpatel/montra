@@ -32,7 +32,7 @@ export const CATEGORIES = [
   { key: 'Entertainment', icon: 'film', color: '#FF2D55' },
   { key: 'Travel', icon: 'map', color: '#007AFF' },
   { key: 'Health', icon: 'heart', color: '#34C759' },
-  { key: 'Other', icon: 'more-horizontal', color: '#8E8E93' },
+  { key: 'Other', icon: 'grid', color: '#8E8E93' },
 ];
 
 export function categoryMeta(name?: string | null) {

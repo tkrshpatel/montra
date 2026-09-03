@@ -1,0 +1,47 @@
+{
+  "summary": "Montra iteration 11 regression: full backend suite (125/125 passing serial, 146.02s) + frontend web preview verified. Backend: (a) updated legacy /api/fx assertions in test_iteration2.py and test_iteration3.py from `updated_at` -> new shape `snapshot_date` (YYYY-MM-DD) + `refreshed_today` (bool); (b) added test_iteration11.py (6 tests) covering brand rename ('Montra API' at /api/), FX new-shape response, consecutive same-user calls flip refreshed_today True->False with identical snapshot_date and rates, user doc fx_snapshot persistence (date + rates dict), and balances/insights convert_amount regression. GET /api/ live-verified via curl -> {\"message\":\"Montra API\",\"ok\":true}. Frontend: login screen renders Montra brand + 'Money Mantra' tagline + light-green tintedBg + 3 feature cards (feature-0/1/2 testIDs visible) + dark-green pill 'Continue with Google' button. Zero PAGEERRORs, zero 'Property styles doesn't exist' render errors. All three unauth routes (`/(tabs)/dashboard`, `/insights`, `/expense/xyz`) redirect to /login cleanly. Only observation: RN-Web deprecation warning `\"shadow*\" style props are deprecated. Use \"boxShadow\"` — minor, non-blocking.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [],
+    "react_native_issues": [
+      {"component": "login.tsx featureCard style (shadowColor/shadowOffset/shadowOpacity/shadowRadius) — and any other screens using shadow* props", "issue": "RN-Web console warning: '\"shadow*\" style props are deprecated. Use \"boxShadow\".' Non-blocking on web preview but will surface repeatedly in every dev-console; consider migrating to `boxShadow` (RN 0.76+) or gating shadow* behind Platform.OS !== 'web'. Reference: /app/frontend/app/login.tsx:106"}
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/conftest.py",
+    "/app/backend/tests/test_api.py",
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_iteration4.py",
+    "/app/backend/tests/test_iteration5.py",
+    "/app/backend/tests/test_iteration6.py",
+    "/app/backend/tests/test_iteration11.py",
+    "/app/test_reports/pytest/iteration11_results.xml"
+  ],
+  "action_items": [
+    "Optional: migrate `shadow*` style props to `boxShadow` (or gate with Platform.OS) in login.tsx featureCard and any other components using shadowColor/Offset/Opacity/Radius to silence RN-Web deprecation warning.",
+    "Carry-over: server.py still ~941 lines — router split still outstanding (iter6-10 note).",
+    "Carry-over: _SCAN_HITS rate-limit bucket remains per-process in-memory; move to Redis/Mongo TTL for horizontal scale.",
+    "Carry-over: currency whitelist duplicated across /expenses, /recurring, /auth/currency — extract helper."
+  ],
+  "critical_code_review_comments": [
+    "server.py:714-727 get_rates_for_user is a clean, correct daily-snapshot pattern: snapshot keyed by user_id + UTC date; single write per user per UTC day; falls back to in-memory 30-min cache via get_rates() for the actual quote fetch. Idempotent second call in-day short-circuits without a Mongo write.",
+    "login.tsx correctly uses `useMemo(() => makeStyles(colors), [colors])` (line 12) — matches the pattern that fixed the earlier 'Property styles doesn\\'t exist' render error. Same pattern needs to be preserved wherever theme-derived StyleSheet is inlined.",
+    "server.py:900 API root message now returns 'Montra API' — brand rename verified via curl.",
+    "test_api.py:16 uses only `ok is True` assertion — brand-rename regression is now covered by new test_iteration11.py TestBrandRename explicitly asserting message == 'Montra API'.",
+    "FX contract change is backwards-incompatible for any frontend still reading `updated_at`. Confirm FxContext.tsx consumes `snapshot_date`/`refreshed_today` (not tested end-to-end here since auth-gated)."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_iteration2.py",
+    "/app/backend/tests/test_iteration3.py",
+    "/app/backend/tests/test_iteration11.py"
+  ],
+  "success_rate": {"backend": "100% (125/125 full suite serial `pytest -n 0`, 146.02s)", "frontend": "100% for scoped checks (login render + 3 unauth redirects + zero PAGEERRORs + zero 'Property styles' errors)"},
+  "seed_data_creation": "Reused existing seed user_test_fixture01 / test_token_abc (conftest.py). test_iteration11 TestFxSnapshotShape.test_fx_second_call_not_refreshed clears user's fx_snapshot before the first call to deterministically exercise the refreshed_today True -> False flip in a single test run; no external seed data added.",
+  "retest_needed": false,
+  "should_main_agent_self_test": false,
+  "context_for_next_testing_agent": "Iter11 covers brand rename SplitSync->Montra and FX daily-snapshot contract change (`snapshot_date` + `refreshed_today` replace `updated_at`). New regression coverage lives in /app/backend/tests/test_iteration11.py. If a future iteration changes FX shape again, update TestFxSnapshotShape assertions there. Login page uses testIDs: `login-screen`, `login-logo`, `feature-0..2`, `google-signin-button`. Unauth redirect for `/(tabs)/dashboard`, `/insights`, `/expense/xyz` all resolve to /login within 15s. RN-Web 'shadow*' deprecation warning is present in dev console but non-blocking.",
+  "rca_of_issue": "N/A — no regressions found. Two pre-existing tests (test_iteration2.py TestFX.test_fx_returns_rates and test_iteration3.py TestFXExpanded.test_fx_all_five_currencies) asserted the removed `updated_at` field. Root cause: /api/fx response shape intentionally migrated to per-user daily snapshot. Fix applied in this iteration: replaced those two assertions with checks on the new keys (`snapshot_date` YYYY-MM-DD format + `refreshed_today` bool) — no behavioural change; only test contract catch-up."
+}

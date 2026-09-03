@@ -190,7 +190,7 @@ export default function AddExpense() {
             <View style={styles.currencyToggle}>
               {CURRENCIES.map(c => (
                 <Pressable key={c} onPress={() => setCurrency(c)} style={[styles.curBtn, currency === c && styles.curBtnActive]} testID={`cur-${c}`}>
-                  <Text style={[styles.curText, currency === c && { color: '#FFF' }]}>{c}</Text>
+                  <Text style={[styles.curText, currency === c && { color: colors.onBrand }]}>{c}</Text>
                 </Pressable>
               ))}
             </View>
@@ -400,7 +400,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   amountWrap: { alignItems: 'center', paddingVertical: SPACING.lg, gap: SPACING.md },
   currencyToggle: { flexDirection: 'row', gap: 4, backgroundColor: colors.surfaceSecondary, borderRadius: RADIUS.pill, padding: 4 },
   curBtn: { paddingHorizontal: SPACING.md, height: 32, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
-  curBtnActive: { backgroundColor: colors.onSurface },
+  curBtnActive: { backgroundColor: colors.brand },
   curText: { fontWeight: '700', color: colors.onSurfaceSecondary },
   amountRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
   amountSym: { fontSize: FONT.size.hero, color: colors.onSurfaceTertiary, fontWeight: '700' },

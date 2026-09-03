@@ -176,7 +176,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   userEmail: { fontSize: FONT.size.base, color: colors.onSurfaceTertiary, marginTop: 2 },
   section: { fontSize: FONT.size.base, fontWeight: '700', color: colors.onSurfaceTertiary, paddingHorizontal: SPACING.lg, marginTop: SPACING.md, marginBottom: SPACING.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
   currencyRow: { flexDirection: 'row', gap: SPACING.sm, paddingHorizontal: SPACING.lg, flexWrap: 'wrap' },
-  currencyChip: { minWidth: 60, paddingHorizontal: SPACING.md, height: 48, borderRadius: RADIUS.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
+  currencyChip: { minWidth: 96, paddingHorizontal: SPACING.lg, height: 64, borderRadius: RADIUS.md, borderWidth: 1, borderColor: colors.border, alignItems: 'center', justifyContent: 'center' },
   currencyChipActive: { borderColor: colors.brand, backgroundColor: colors.brandTertiary },
   currencyText: { fontSize: FONT.size.lg, fontWeight: '700', color: colors.onSurfaceSecondary },
   currencyTextActive: { color: colors.brand },

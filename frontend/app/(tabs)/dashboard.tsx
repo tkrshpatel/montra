@@ -33,7 +33,7 @@ export default function Dashboard() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
-  const { convert, refresh: refreshFx } = useFx();
+  const { convert, refresh: refreshFx, syncing } = useFx();
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [balance, setBalance] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -98,6 +98,12 @@ export default function Dashboard() {
 
   return (
     <View style={[styles.root, { paddingBottom: 0 }]} testID="dashboard-screen">
+      {syncing ? (
+        <View style={[styles.syncBanner, { top: insets.top + SPACING.sm }]} testID="fx-syncing-banner" pointerEvents="none">
+          <ActivityIndicator color={colors.brand} size="small" />
+          <Text style={styles.syncText}>Syncing live FX rates</Text>
+        </View>
+      ) : null}
       {/* Hero */}
       <View style={[styles.heroWrap, { paddingTop: insets.top + SPACING.lg }]}>
         <Image source={{ uri: HERO_BG }} style={StyleSheet.absoluteFill} contentFit="cover" />
@@ -306,7 +312,16 @@ export default function Dashboard() {
 }
 
 const makeStyles = (colors: any) => StyleSheet.create({
-  root: { flex: 1, backgroundColor: colors.surface },
+  root: { flex: 1, backgroundColor: colors.tintedBg },
+  syncBanner: {
+    position: 'absolute', alignSelf: 'center',
+    flexDirection: 'row', alignItems: 'center', gap: SPACING.sm,
+    paddingHorizontal: SPACING.lg, paddingVertical: SPACING.sm,
+    backgroundColor: colors.surface, borderRadius: RADIUS.pill,
+    shadowColor: colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 1, shadowRadius: 12, elevation: 4,
+    zIndex: 100,
+  },
+  syncText: { fontSize: FONT.size.sm, fontWeight: '700', color: colors.onSurface },
   heroWrap: {
     marginHorizontal: SPACING.lg, borderRadius: RADIUS.lg, overflow: 'hidden',
     marginTop: SPACING.md,
@@ -327,9 +342,9 @@ const makeStyles = (colors: any) => StyleSheet.create({
 
   filterRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, paddingHorizontal: SPACING.lg, paddingTop: SPACING.lg, paddingBottom: SPACING.md },
   chip: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: SPACING.lg, height: 36, borderRadius: RADIUS.pill, backgroundColor: colors.surfaceSecondary },
-  chipActive: { backgroundColor: colors.onSurface },
+  chipActive: { backgroundColor: colors.brand },
   chipText: { fontSize: FONT.size.base, fontWeight: '600', color: colors.onSurfaceSecondary },
-  chipTextActive: { color: '#FFF' },
+  chipTextActive: { color: colors.onBrand },
 
   filtersPanel: { paddingBottom: SPACING.sm, borderBottomWidth: 1, borderBottomColor: colors.border, marginBottom: SPACING.sm },
   searchWrap: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, marginHorizontal: SPACING.lg, height: 44, borderRadius: RADIUS.md, backgroundColor: colors.surfaceSecondary, paddingHorizontal: SPACING.md },
