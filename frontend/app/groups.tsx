@@ -1,15 +1,18 @@
 import { View, Text, StyleSheet, Pressable, ScrollView, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, FlatList } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState , useMemo} from 'react';
 import Feather from '@react-native-vector-icons/feather';
 import { api } from '../src/api';
-import { COLORS, SPACING, RADIUS, FONT } from '../src/theme';
+import { SPACING, RADIUS, FONT } from '../src/theme'
+import { useTheme } from '../src/theme/ThemeContext';
 
 type Friend = { friend_id: string; name: string };
 type Group = { group_id: string; name: string; member_ids: string[] };
 
 export default function Groups() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [creating, setCreating] = useState(false);
@@ -51,14 +54,14 @@ export default function Groups() {
     ids.map(id => friends.find(f => f.friend_id === id)?.name).filter(Boolean).join(', ');
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: COLORS.surface }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.surface }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
         <Pressable onPress={() => router.back()} hitSlop={12} testID="close-groups">
-          <Feather name="x" size={24} color={COLORS.onSurface} />
+          <Feather name="x" size={24} color={colors.onSurface} />
         </Pressable>
         <Text style={styles.title}>Groups</Text>
         <Pressable onPress={() => setCreating(v => !v)} hitSlop={12} testID="toggle-create-group">
-          <Feather name={creating ? 'minus' : 'plus'} size={24} color={COLORS.brand} />
+          <Feather name={creating ? 'minus' : 'plus'} size={24} color={colors.brand} />
         </Pressable>
       </View>
 
@@ -69,7 +72,7 @@ export default function Groups() {
             value={name}
             onChangeText={setName}
             placeholder="e.g. Goa trip"
-            placeholderTextColor={COLORS.onSurfaceTertiary}
+            placeholderTextColor={colors.onSurfaceTertiary}
             style={styles.input}
             testID="group-name-input"
             autoFocus
@@ -85,14 +88,14 @@ export default function Groups() {
                   <Pressable
                     key={f.friend_id}
                     onPress={() => toggle(f.friend_id)}
-                    style={[styles.memberRow, active && { borderColor: COLORS.brand, backgroundColor: COLORS.brandTertiary }]}
+                    style={[styles.memberRow, active && { borderColor: colors.brand, backgroundColor: colors.brandTertiary }]}
                     testID={`member-${f.friend_id}`}
                   >
                     <View style={styles.avatar}>
                       <Text style={styles.avatarText}>{f.name.slice(0,1).toUpperCase()}</Text>
                     </View>
                     <Text style={styles.memberName}>{f.name}</Text>
-                    <Feather name={active ? 'check-circle' : 'circle'} size={20} color={active ? COLORS.brand : COLORS.onSurfaceTertiary} />
+                    <Feather name={active ? 'check-circle' : 'circle'} size={20} color={active ? colors.brand : colors.onSurfaceTertiary} />
                   </Pressable>
                 );
               })}
@@ -103,7 +106,7 @@ export default function Groups() {
           </Pressable>
         </ScrollView>
       ) : loading ? (
-        <View style={styles.center}><ActivityIndicator color={COLORS.brand} /></View>
+        <View style={styles.center}><ActivityIndicator color={colors.brand} /></View>
       ) : (
         <FlatList
           data={groups}
@@ -111,14 +114,14 @@ export default function Groups() {
           contentContainerStyle={{ padding: SPACING.lg }}
           ListEmptyComponent={
             <View style={styles.empty} testID="groups-empty">
-              <View style={styles.emptyIcon}><Feather name="folder" size={24} color={COLORS.brand} /></View>
+              <View style={styles.emptyIcon}><Feather name="folder" size={24} color={colors.brand} /></View>
               <Text style={styles.emptyTitle}>No groups yet</Text>
               <Text style={styles.emptyText}>Create a trip or roommate group to split ongoing expenses.</Text>
             </View>
           }
           renderItem={({ item }) => (
             <View style={styles.groupCard} testID={`group-${item.group_id}`}>
-              <View style={styles.groupIcon}><Feather name="folder" size={20} color={COLORS.brand} /></View>
+              <View style={styles.groupIcon}><Feather name="folder" size={20} color={colors.brand} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.groupName}>{item.name}</Text>
                 <Text style={styles.groupSub} numberOfLines={1}>
@@ -127,7 +130,7 @@ export default function Groups() {
                 </Text>
               </View>
               <Pressable onPress={() => remove(item.group_id)} hitSlop={10} testID={`delete-group-${item.group_id}`}>
-                <Feather name="trash-2" size={18} color={COLORS.error} />
+                <Feather name="trash-2" size={18} color={colors.error} />
               </Pressable>
             </View>
           )}
@@ -138,25 +141,25 @@ export default function Groups() {
   );
 }
 
-const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  title: { fontSize: FONT.size.lg, fontWeight: '700', color: COLORS.onSurface },
-  label: { fontSize: FONT.size.sm, fontWeight: '700', color: COLORS.onSurfaceTertiary, textTransform: 'uppercase', marginBottom: SPACING.sm, marginTop: SPACING.md, letterSpacing: 0.5 },
-  input: { backgroundColor: COLORS.surfaceSecondary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 52, fontSize: FONT.size.lg, color: COLORS.onSurface },
-  hint: { fontSize: FONT.size.base, color: COLORS.onSurfaceTertiary },
-  memberRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border },
-  memberName: { flex: 1, fontSize: FONT.size.lg, fontWeight: '600', color: COLORS.onSurface },
-  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.brand, alignItems: 'center', justifyContent: 'center' },
+const makeStyles = (colors: any) => StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  title: { fontSize: FONT.size.lg, fontWeight: '700', color: colors.onSurface },
+  label: { fontSize: FONT.size.sm, fontWeight: '700', color: colors.onSurfaceTertiary, textTransform: 'uppercase', marginBottom: SPACING.sm, marginTop: SPACING.md, letterSpacing: 0.5 },
+  input: { backgroundColor: colors.surfaceSecondary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 52, fontSize: FONT.size.lg, color: colors.onSurface },
+  hint: { fontSize: FONT.size.base, color: colors.onSurfaceTertiary },
+  memberRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1, borderColor: colors.border },
+  memberName: { flex: 1, fontSize: FONT.size.lg, fontWeight: '600', color: colors.onSurface },
+  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#FFF', fontWeight: '700' },
-  saveBtn: { backgroundColor: COLORS.brand, height: 54, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center', marginTop: SPACING.xl },
+  saveBtn: { backgroundColor: colors.brand, height: 54, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center', marginTop: SPACING.xl },
   saveText: { color: '#FFF', fontSize: FONT.size.lg, fontWeight: '700' },
-  groupCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
-  groupIcon: { width: 40, height: 40, borderRadius: RADIUS.md, backgroundColor: COLORS.brandTertiary, alignItems: 'center', justifyContent: 'center' },
-  groupName: { fontSize: FONT.size.lg, fontWeight: '700', color: COLORS.onSurface },
-  groupSub: { fontSize: FONT.size.sm, color: COLORS.onSurfaceTertiary, marginTop: 2 },
+  groupCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  groupIcon: { width: 40, height: 40, borderRadius: RADIUS.md, backgroundColor: colors.brandTertiary, alignItems: 'center', justifyContent: 'center' },
+  groupName: { fontSize: FONT.size.lg, fontWeight: '700', color: colors.onSurface },
+  groupSub: { fontSize: FONT.size.sm, color: colors.onSurfaceTertiary, marginTop: 2 },
   empty: { alignItems: 'center', paddingVertical: SPACING.xxxl, gap: SPACING.md },
-  emptyIcon: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.brandTertiary, alignItems: 'center', justifyContent: 'center' },
-  emptyTitle: { fontSize: FONT.size.xl, fontWeight: '700', color: COLORS.onSurface },
-  emptyText: { fontSize: FONT.size.base, color: COLORS.onSurfaceTertiary, textAlign: 'center' },
+  emptyIcon: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.brandTertiary, alignItems: 'center', justifyContent: 'center' },
+  emptyTitle: { fontSize: FONT.size.xl, fontWeight: '700', color: colors.onSurface },
+  emptyText: { fontSize: FONT.size.base, color: colors.onSurfaceTertiary, textAlign: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

@@ -12,7 +12,8 @@
       "bundleIdentifier": "com.emergent.invoicescan.d4y5at",
       "infoPlist": {
         "NSCameraUsageDescription": "Scan receipts to log expenses",
-        "NSPhotoLibraryUsageDescription": "Pick a receipt to scan"
+        "NSPhotoLibraryUsageDescription": "Pick a receipt to scan",
+        "NSFaceIDUsageDescription": "Unlock SplitSync with Face ID"
       }
     },
     "android": {
@@ -21,7 +22,7 @@
         "backgroundColor": "#000000"
       },
       "package": "com.emergent.invoicescan.d4y5at",
-      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "READ_MEDIA_IMAGES"]
+      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "READ_MEDIA_IMAGES", "USE_BIOMETRIC", "USE_FINGERPRINT"]
     },
     "web": {
       "bundler": "metro",
@@ -46,7 +47,13 @@
       "expo-status-bar",
       "@react-native-vector-icons/feather",
       "expo-camera",
-      "expo-image-picker"
+      "expo-image-picker",
+      [
+        "expo-local-authentication",
+        {
+          "faceIDPermission": "Unlock SplitSync with Face ID"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

@@ -1,16 +1,19 @@
 import { View, Text, StyleSheet, ScrollView, Pressable, ActivityIndicator, RefreshControl } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState , useMemo} from 'react';
 import Feather from '@react-native-vector-icons/feather';
 import { api } from '../src/api';
-import { COLORS, SPACING, RADIUS, FONT, categoryMeta, currencySymbol } from '../src/theme';
+import { SPACING, RADIUS, FONT, categoryMeta, currencySymbol } from '../src/theme'
+import { useTheme } from '../src/theme/ThemeContext';
 
 function formatMonth(y: number, m: number) {
   return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
 }
 
 export default function Insights() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const today = new Date();
@@ -45,7 +48,7 @@ export default function Insights() {
     <View style={[styles.root, { paddingTop: insets.top }]} testID="insights-screen">
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12} testID="close-insights">
-          <Feather name="x" size={24} color={COLORS.onSurface} />
+          <Feather name="x" size={24} color={colors.onSurface} />
         </Pressable>
         <Text style={styles.title}>Insights</Text>
         <View style={{ width: 24 }} />
@@ -53,17 +56,17 @@ export default function Insights() {
 
       <View style={styles.monthRow}>
         <Pressable onPress={prev} style={styles.navBtn} hitSlop={8} testID="prev-month">
-          <Feather name="chevron-left" size={18} color={COLORS.onSurface} />
+          <Feather name="chevron-left" size={18} color={colors.onSurface} />
         </Pressable>
         <Text style={styles.monthText}>{formatMonth(year, month)}</Text>
         <Pressable onPress={next} style={styles.navBtn} hitSlop={8} testID="next-month">
-          <Feather name="chevron-right" size={18} color={COLORS.onSurface} />
+          <Feather name="chevron-right" size={18} color={colors.onSurface} />
         </Pressable>
       </View>
 
       <ScrollView
         contentContainerStyle={{ padding: SPACING.lg, paddingBottom: SPACING.xxxl }}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.brand} />}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brand} />}
       >
         <View style={styles.summary}>
           <Text style={styles.summaryLabel}>Total spent</Text>
@@ -87,10 +90,10 @@ export default function Insights() {
         ) : null}
 
         {loading ? (
-          <View style={styles.center}><ActivityIndicator color={COLORS.brand} /></View>
+          <View style={styles.center}><ActivityIndicator color={colors.brand} /></View>
         ) : breakdown.length === 0 ? (
           <View style={styles.empty} testID="insights-empty">
-            <View style={styles.emptyIcon}><Feather name="bar-chart-2" size={24} color={COLORS.brand} /></View>
+            <View style={styles.emptyIcon}><Feather name="bar-chart-2" size={24} color={colors.brand} /></View>
             <Text style={styles.emptyTitle}>No spend this month</Text>
             <Text style={styles.emptyText}>Log expenses to see your category breakdown here.</Text>
           </View>
@@ -124,6 +127,7 @@ export default function Insights() {
 }
 
 function TrendDelta({ series, sym }: { series: any[]; sym: string }) {
+  const { colors } = useTheme();
   if (series.length < 2) return null;
   const last = series[series.length - 1].total;
   const prev = series[series.length - 2].total;
@@ -131,7 +135,7 @@ function TrendDelta({ series, sym }: { series: any[]; sym: string }) {
   const pct = prev > 0 ? (diff / prev) * 100 : (last > 0 ? 100 : 0);
   const up = diff > 0.005;
   const down = diff < -0.005;
-  const color = up ? COLORS.error : (down ? COLORS.brand : COLORS.onSurfaceTertiary);
+  const color = up ? colors.error : (down ? colors.brand : colors.onSurfaceTertiary);
   const label = up ? 'up' : (down ? 'down' : 'flat');
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }} testID="trend-delta">
@@ -144,6 +148,8 @@ function TrendDelta({ series, sym }: { series: any[]; sym: string }) {
 }
 
 function TrendBars({ series, sym, currentMonth }: { series: any[]; sym: string; currentMonth?: string }) {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const max = Math.max(1, ...series.map((s: any) => s.total));
   const H = 100;
   return (
@@ -155,8 +161,8 @@ function TrendBars({ series, sym, currentMonth }: { series: any[]; sym: string; 
           return (
             <View key={s.month} style={styles.barCol} testID={`trend-bar-${s.month}`}>
               <Text style={styles.barVal}>{s.total > 0 ? `${sym}${Math.round(s.total)}` : ''}</Text>
-              <View style={[styles.bar, { height: h, backgroundColor: isCurrent ? COLORS.brand : COLORS.brandSecondary }]} />
-              <Text style={[styles.barLabel, isCurrent && { color: COLORS.brand, fontWeight: '700' }]}>
+              <View style={[styles.bar, { height: h, backgroundColor: isCurrent ? colors.brand : colors.brandSecondary }]} />
+              <Text style={[styles.barLabel, isCurrent && { color: colors.brand, fontWeight: '700' }]}>
                 {new Date(`${s.month}-01`).toLocaleDateString(undefined, { month: 'short' })}
               </Text>
             </View>
@@ -167,36 +173,36 @@ function TrendBars({ series, sym, currentMonth }: { series: any[]; sym: string; 
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.surface },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingTop: SPACING.sm },
-  title: { fontSize: FONT.size.lg, fontWeight: '700', color: COLORS.onSurface },
-  monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.md, paddingVertical: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  navBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: COLORS.surfaceSecondary, alignItems: 'center', justifyContent: 'center' },
-  monthText: { fontSize: FONT.size.lg, fontWeight: '700', color: COLORS.onSurface, minWidth: 160, textAlign: 'center' },
-  summary: { padding: SPACING.xl, borderRadius: RADIUS.lg, backgroundColor: COLORS.brandTertiary, marginBottom: SPACING.lg },
-  trendCard: { padding: SPACING.lg, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.lg, gap: SPACING.md },
+const makeStyles = (colors: any) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.surface },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: colors.border, paddingTop: SPACING.sm },
+  title: { fontSize: FONT.size.lg, fontWeight: '700', color: colors.onSurface },
+  monthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.md, paddingVertical: SPACING.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  navBtn: { width: 36, height: 36, borderRadius: 18, backgroundColor: colors.surfaceSecondary, alignItems: 'center', justifyContent: 'center' },
+  monthText: { fontSize: FONT.size.lg, fontWeight: '700', color: colors.onSurface, minWidth: 160, textAlign: 'center' },
+  summary: { padding: SPACING.xl, borderRadius: RADIUS.lg, backgroundColor: colors.brandTertiary, marginBottom: SPACING.lg },
+  trendCard: { padding: SPACING.lg, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: colors.border, marginBottom: SPACING.lg, gap: SPACING.md },
   trendHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   barsRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: SPACING.sm, height: 140 },
   barCol: { flex: 1, alignItems: 'center', gap: 6 },
   bar: { width: '100%', borderTopLeftRadius: RADIUS.sm, borderTopRightRadius: RADIUS.sm, minHeight: 3 },
-  barVal: { fontSize: 10, fontWeight: '700', color: COLORS.onSurfaceSecondary },
-  barLabel: { fontSize: FONT.size.sm, color: COLORS.onSurfaceTertiary, fontWeight: '600' },
-  summaryLabel: { fontSize: FONT.size.base, color: COLORS.onBrandTertiary, fontWeight: '600' },
-  summaryAmount: { fontSize: FONT.size.hero, fontWeight: '800', color: COLORS.brand, marginTop: SPACING.xs, letterSpacing: -1 },
-  summaryMeta: { fontSize: FONT.size.base, color: COLORS.onSurfaceSecondary, marginTop: SPACING.xs },
-  section: { fontSize: FONT.size.lg, fontWeight: '700', color: COLORS.onSurface },
+  barVal: { fontSize: 10, fontWeight: '700', color: colors.onSurfaceSecondary },
+  barLabel: { fontSize: FONT.size.sm, color: colors.onSurfaceTertiary, fontWeight: '600' },
+  summaryLabel: { fontSize: FONT.size.base, color: colors.onBrandTertiary, fontWeight: '600' },
+  summaryAmount: { fontSize: FONT.size.hero, fontWeight: '800', color: colors.brand, marginTop: SPACING.xs, letterSpacing: -1 },
+  summaryMeta: { fontSize: FONT.size.base, color: colors.onSurfaceSecondary, marginTop: SPACING.xs },
+  section: { fontSize: FONT.size.lg, fontWeight: '700', color: colors.onSurface },
   catRow: { gap: 6 },
   catHead: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   catIcon: { width: 32, height: 32, borderRadius: RADIUS.sm, alignItems: 'center', justifyContent: 'center' },
-  catName: { flex: 1, fontSize: FONT.size.base, fontWeight: '700', color: COLORS.onSurface },
-  catAmt: { fontSize: FONT.size.base, fontWeight: '700', color: COLORS.onSurface },
-  barTrack: { height: 8, borderRadius: 4, backgroundColor: COLORS.surfaceSecondary, overflow: 'hidden', marginLeft: 44 },
+  catName: { flex: 1, fontSize: FONT.size.base, fontWeight: '700', color: colors.onSurface },
+  catAmt: { fontSize: FONT.size.base, fontWeight: '700', color: colors.onSurface },
+  barTrack: { height: 8, borderRadius: 4, backgroundColor: colors.surfaceSecondary, overflow: 'hidden', marginLeft: 44 },
   barFill: { height: '100%', borderRadius: 4 },
-  catPct: { marginLeft: 44, fontSize: FONT.size.sm, color: COLORS.onSurfaceTertiary, fontWeight: '600' },
+  catPct: { marginLeft: 44, fontSize: FONT.size.sm, color: colors.onSurfaceTertiary, fontWeight: '600' },
   empty: { alignItems: 'center', paddingVertical: SPACING.xxxl, gap: SPACING.md },
-  emptyIcon: { width: 60, height: 60, borderRadius: 30, backgroundColor: COLORS.brandTertiary, alignItems: 'center', justifyContent: 'center' },
-  emptyTitle: { fontSize: FONT.size.xl, fontWeight: '700', color: COLORS.onSurface },
-  emptyText: { fontSize: FONT.size.base, color: COLORS.onSurfaceTertiary, textAlign: 'center' },
+  emptyIcon: { width: 60, height: 60, borderRadius: 30, backgroundColor: colors.brandTertiary, alignItems: 'center', justifyContent: 'center' },
+  emptyTitle: { fontSize: FONT.size.xl, fontWeight: '700', color: colors.onSurface },
+  emptyText: { fontSize: FONT.size.base, color: colors.onSurfaceTertiary, textAlign: 'center' },
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.xxxl },
 });

@@ -1,12 +1,15 @@
 import { View, Text, StyleSheet, Pressable, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState , useMemo} from 'react';
 import Feather from '@react-native-vector-icons/feather';
 import { api } from '../src/api';
-import { COLORS, SPACING, RADIUS, FONT } from '../src/theme';
+import { SPACING, RADIUS, FONT } from '../src/theme'
+import { useTheme } from '../src/theme/ThemeContext';
 
 export default function AddFriend() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [name, setName] = useState('');
@@ -24,10 +27,10 @@ export default function AddFriend() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: COLORS.surface }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.surface }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
         <Pressable onPress={() => router.back()} hitSlop={12} testID="close-add-friend">
-          <Feather name="x" size={24} color={COLORS.onSurface} />
+          <Feather name="x" size={24} color={colors.onSurface} />
         </Pressable>
         <Text style={styles.title}>Add friend</Text>
         <View style={{ width: 24 }} />
@@ -39,7 +42,7 @@ export default function AddFriend() {
           value={name}
           onChangeText={setName}
           placeholder="John Doe"
-          placeholderTextColor={COLORS.onSurfaceTertiary}
+          placeholderTextColor={colors.onSurfaceTertiary}
           style={styles.input}
           testID="friend-name-input"
           autoFocus
@@ -49,7 +52,7 @@ export default function AddFriend() {
           value={email}
           onChangeText={setEmail}
           placeholder="john@example.com"
-          placeholderTextColor={COLORS.onSurfaceTertiary}
+          placeholderTextColor={colors.onSurfaceTertiary}
           style={styles.input}
           keyboardType="email-address"
           autoCapitalize="none"
@@ -66,12 +69,12 @@ export default function AddFriend() {
   );
 }
 
-const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  title: { fontSize: FONT.size.lg, fontWeight: '700', color: COLORS.onSurface },
-  label: { fontSize: FONT.size.sm, fontWeight: '700', color: COLORS.onSurfaceTertiary, textTransform: 'uppercase', marginBottom: SPACING.sm, marginTop: SPACING.md, letterSpacing: 0.5 },
-  input: { backgroundColor: COLORS.surfaceSecondary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 52, fontSize: FONT.size.lg, color: COLORS.onSurface },
-  bar: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border },
-  saveBtn: { backgroundColor: COLORS.brand, height: 54, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
+const makeStyles = (colors: any) => StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  title: { fontSize: FONT.size.lg, fontWeight: '700', color: colors.onSurface },
+  label: { fontSize: FONT.size.sm, fontWeight: '700', color: colors.onSurfaceTertiary, textTransform: 'uppercase', marginBottom: SPACING.sm, marginTop: SPACING.md, letterSpacing: 0.5 },
+  input: { backgroundColor: colors.surfaceSecondary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 52, fontSize: FONT.size.lg, color: colors.onSurface },
+  bar: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
+  saveBtn: { backgroundColor: colors.brand, height: 54, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
   saveText: { color: '#FFF', fontSize: FONT.size.lg, fontWeight: '700' },
 });

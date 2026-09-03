@@ -1,14 +1,17 @@
 import { View, Text, StyleSheet, Pressable, TextInput, KeyboardAvoidingView, Platform, ActivityIndicator, ScrollView } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useState } from 'react';
+import { useState , useMemo} from 'react';
 import Feather from '@react-native-vector-icons/feather';
 import * as Haptics from 'expo-haptics';
 import { api } from '../src/api';
 import { useAuth } from '../src/auth/AuthContext';
-import { COLORS, SPACING, RADIUS, FONT, currencySymbol } from '../src/theme';
+import { SPACING, RADIUS, FONT, currencySymbol } from '../src/theme'
+import { useTheme } from '../src/theme/ThemeContext';
 
 export default function Settle() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
@@ -45,10 +48,10 @@ export default function Settle() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: COLORS.surface }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+    <KeyboardAvoidingView style={{ flex: 1, backgroundColor: colors.surface }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
         <Pressable onPress={() => router.back()} hitSlop={12} testID="close-settle">
-          <Feather name="x" size={24} color={COLORS.onSurface} />
+          <Feather name="x" size={24} color={colors.onSurface} />
         </Pressable>
         <Text style={styles.title}>Settle up</Text>
         <View style={{ width: 24 }} />
@@ -70,7 +73,7 @@ export default function Settle() {
             value={amount}
             onChangeText={(v) => { setAmount(v); if (err) setErr(null); }}
             placeholder="0.00"
-            placeholderTextColor={COLORS.onSurfaceTertiary}
+            placeholderTextColor={colors.onSurfaceTertiary}
             keyboardType="decimal-pad"
             style={styles.amountInput}
             testID="settle-amount-input"
@@ -83,7 +86,7 @@ export default function Settle() {
           value={note}
           onChangeText={setNote}
           placeholder="e.g. Paid in cash"
-          placeholderTextColor={COLORS.onSurfaceTertiary}
+          placeholderTextColor={colors.onSurfaceTertiary}
           style={styles.input}
           testID="settle-note-input"
         />
@@ -105,21 +108,21 @@ export default function Settle() {
   );
 }
 
-const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  title: { fontSize: FONT.size.lg, fontWeight: '700', color: COLORS.onSurface },
-  friendCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, padding: SPACING.lg, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceSecondary },
-  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: COLORS.brand, alignItems: 'center', justifyContent: 'center' },
+const makeStyles = (colors: any) => StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  title: { fontSize: FONT.size.lg, fontWeight: '700', color: colors.onSurface },
+  friendCard: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md, padding: SPACING.lg, borderRadius: RADIUS.md, backgroundColor: colors.surfaceSecondary },
+  avatar: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   avatarText: { color: '#FFF', fontWeight: '700', fontSize: FONT.size.lg },
-  friendName: { fontSize: FONT.size.lg, fontWeight: '700', color: COLORS.onSurface },
-  friendSub: { fontSize: FONT.size.base, color: COLORS.brand, marginTop: 2, fontWeight: '600' },
-  label: { fontSize: FONT.size.sm, fontWeight: '700', color: COLORS.onSurfaceTertiary, textTransform: 'uppercase', marginTop: SPACING.lg, marginBottom: SPACING.sm, letterSpacing: 0.5 },
-  amountRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderBottomWidth: 2, borderBottomColor: COLORS.border, paddingBottom: SPACING.sm },
-  amountSym: { fontSize: FONT.size.xxl, color: COLORS.onSurfaceTertiary, fontWeight: '700' },
-  amountInput: { flex: 1, fontSize: 40, fontWeight: '800', color: COLORS.onSurface },
-  input: { backgroundColor: COLORS.surfaceSecondary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 52, fontSize: FONT.size.lg, color: COLORS.onSurface },
-  err: { color: COLORS.error, marginTop: SPACING.md },
-  bar: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border },
-  saveBtn: { backgroundColor: COLORS.brand, height: 54, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
+  friendName: { fontSize: FONT.size.lg, fontWeight: '700', color: colors.onSurface },
+  friendSub: { fontSize: FONT.size.base, color: colors.brand, marginTop: 2, fontWeight: '600' },
+  label: { fontSize: FONT.size.sm, fontWeight: '700', color: colors.onSurfaceTertiary, textTransform: 'uppercase', marginTop: SPACING.lg, marginBottom: SPACING.sm, letterSpacing: 0.5 },
+  amountRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderBottomWidth: 2, borderBottomColor: colors.border, paddingBottom: SPACING.sm },
+  amountSym: { fontSize: FONT.size.xxl, color: colors.onSurfaceTertiary, fontWeight: '700' },
+  amountInput: { flex: 1, fontSize: 40, fontWeight: '800', color: colors.onSurface },
+  input: { backgroundColor: colors.surfaceSecondary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 52, fontSize: FONT.size.lg, color: colors.onSurface },
+  err: { color: colors.error, marginTop: SPACING.md },
+  bar: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
+  saveBtn: { backgroundColor: colors.brand, height: 54, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
   saveText: { color: '#FFF', fontSize: FONT.size.lg, fontWeight: '700' },
 });

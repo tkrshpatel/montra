@@ -1,15 +1,15 @@
 import { View, StyleSheet, ActivityIndicator } from 'react-native';
-import { COLORS } from '../src/theme';
+import { useTheme } from '../src/theme';
 
-// Root gate handles navigation. Show a loader here.
 export default function Index() {
+  const { colors } = useTheme();
   return (
-    <View style={styles.container} testID="root-index">
-      <ActivityIndicator size="large" color={COLORS.brand} />
+    <View style={[styles.container, { backgroundColor: colors.surface }]} testID="root-index">
+      <ActivityIndicator size="large" color={colors.brand} />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
+  container: { flex: 1, alignItems: 'center', justifyContent: 'center' },
 });

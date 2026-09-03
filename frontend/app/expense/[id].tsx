@@ -2,14 +2,17 @@ import { View, Text, StyleSheet, Pressable, ScrollView, ActivityIndicator, Alert
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useState , useMemo} from 'react';
 import Feather from '@react-native-vector-icons/feather';
 import { api } from '../../src/api';
 import { useAuth } from '../../src/auth/AuthContext';
 import { useFx } from '../../src/fx/FxContext';
-import { COLORS, SPACING, RADIUS, FONT, categoryMeta, currencySymbol } from '../../src/theme';
+import { SPACING, RADIUS, FONT, categoryMeta, currencySymbol } from '../../src/theme'
+import { useTheme } from '../../src/theme/ThemeContext';
 
 export default function ExpenseDetail() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
@@ -64,11 +67,11 @@ export default function ExpenseDetail() {
     <View style={[styles.root, { paddingTop: insets.top }]} testID="expense-detail-screen">
       <View style={styles.header}>
         <Pressable onPress={() => router.back()} hitSlop={12} testID="close-expense">
-          <Feather name="x" size={24} color={COLORS.onSurface} />
+          <Feather name="x" size={24} color={colors.onSurface} />
         </Pressable>
         <Text style={styles.title}>Expense</Text>
         <Pressable onPress={remove} hitSlop={12} disabled={deleting} testID="delete-expense-button">
-          {deleting ? <ActivityIndicator color={COLORS.error} /> : <Feather name="trash-2" size={20} color={COLORS.error} />}
+          {deleting ? <ActivityIndicator color={colors.error} /> : <Feather name="trash-2" size={20} color={colors.error} />}
         </Pressable>
       </View>
 
@@ -84,7 +87,7 @@ export default function ExpenseDetail() {
           ) : null}
           <View style={styles.pillsRow}>
             <View style={styles.pill}><Text style={styles.pillText}>{params.category}</Text></View>
-            {params.is_split === '1' ? <View style={[styles.pill, { backgroundColor: COLORS.brandTertiary }]}><Text style={[styles.pillText, { color: COLORS.brand }]}>Split</Text></View> : null}
+            {params.is_split === '1' ? <View style={[styles.pill, { backgroundColor: colors.brandTertiary }]}><Text style={[styles.pillText, { color: colors.brand }]}>Split</Text></View> : null}
           </View>
         </View>
 
@@ -96,7 +99,7 @@ export default function ExpenseDetail() {
             <Text style={styles.section}>Receipt</Text>
             <View style={styles.receiptWrap}>
               {loadingReceipt ? (
-                <View style={styles.receiptLoading}><ActivityIndicator color={COLORS.brand} /></View>
+                <View style={styles.receiptLoading}><ActivityIndicator color={colors.brand} /></View>
               ) : receiptUri ? (
                 <Image source={{ uri: receiptUri }} style={styles.receiptImg} contentFit="cover" testID="receipt-image" />
               ) : (
@@ -119,24 +122,24 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.surface },
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border, paddingTop: SPACING.sm },
-  title: { fontSize: FONT.size.lg, fontWeight: '700', color: COLORS.onSurface },
-  card: { alignItems: 'center', padding: SPACING.xl, borderRadius: RADIUS.lg, backgroundColor: COLORS.surfaceSecondary, marginBottom: SPACING.lg, gap: SPACING.sm },
+const makeStyles = (colors: any) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.surface },
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: colors.border, paddingTop: SPACING.sm },
+  title: { fontSize: FONT.size.lg, fontWeight: '700', color: colors.onSurface },
+  card: { alignItems: 'center', padding: SPACING.xl, borderRadius: RADIUS.lg, backgroundColor: colors.surfaceSecondary, marginBottom: SPACING.lg, gap: SPACING.sm },
   icon: { width: 56, height: 56, borderRadius: 28, alignItems: 'center', justifyContent: 'center' },
-  merchant: { fontSize: FONT.size.xl, fontWeight: '700', color: COLORS.onSurface, marginTop: SPACING.sm },
-  amount: { fontSize: FONT.size.hero, fontWeight: '800', color: COLORS.onSurface, letterSpacing: -1 },
-  converted: { fontSize: FONT.size.base, color: COLORS.onSurfaceTertiary },
+  merchant: { fontSize: FONT.size.xl, fontWeight: '700', color: colors.onSurface, marginTop: SPACING.sm },
+  amount: { fontSize: FONT.size.hero, fontWeight: '800', color: colors.onSurface, letterSpacing: -1 },
+  converted: { fontSize: FONT.size.base, color: colors.onSurfaceTertiary },
   pillsRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.sm },
-  pill: { paddingHorizontal: SPACING.md, height: 28, borderRadius: 14, backgroundColor: COLORS.surface, alignItems: 'center', justifyContent: 'center' },
-  pillText: { fontSize: FONT.size.sm, fontWeight: '700', color: COLORS.onSurface },
-  row: { flexDirection: 'row', justifyContent: 'space-between', padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, marginBottom: SPACING.sm, gap: SPACING.md },
-  rowLabel: { fontSize: FONT.size.base, color: COLORS.onSurfaceTertiary, fontWeight: '600' },
-  rowValue: { flex: 1, textAlign: 'right', fontSize: FONT.size.base, color: COLORS.onSurface, fontWeight: '600' },
-  section: { fontSize: FONT.size.sm, fontWeight: '700', color: COLORS.onSurfaceTertiary, textTransform: 'uppercase', marginTop: SPACING.md, marginBottom: SPACING.sm, letterSpacing: 0.5 },
-  receiptWrap: { borderRadius: RADIUS.md, overflow: 'hidden', backgroundColor: COLORS.surfaceSecondary, minHeight: 240 },
+  pill: { paddingHorizontal: SPACING.md, height: 28, borderRadius: 14, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center' },
+  pillText: { fontSize: FONT.size.sm, fontWeight: '700', color: colors.onSurface },
+  row: { flexDirection: 'row', justifyContent: 'space-between', padding: SPACING.md, borderRadius: RADIUS.md, borderWidth: 1, borderColor: colors.border, marginBottom: SPACING.sm, gap: SPACING.md },
+  rowLabel: { fontSize: FONT.size.base, color: colors.onSurfaceTertiary, fontWeight: '600' },
+  rowValue: { flex: 1, textAlign: 'right', fontSize: FONT.size.base, color: colors.onSurface, fontWeight: '600' },
+  section: { fontSize: FONT.size.sm, fontWeight: '700', color: colors.onSurfaceTertiary, textTransform: 'uppercase', marginTop: SPACING.md, marginBottom: SPACING.sm, letterSpacing: 0.5 },
+  receiptWrap: { borderRadius: RADIUS.md, overflow: 'hidden', backgroundColor: colors.surfaceSecondary, minHeight: 240 },
   receiptImg: { width: '100%', height: 400 },
   receiptLoading: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: SPACING.xxxl },
-  hint: { padding: SPACING.lg, color: COLORS.onSurfaceTertiary },
+  hint: { padding: SPACING.lg, color: colors.onSurfaceTertiary },
 });

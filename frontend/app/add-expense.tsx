@@ -8,13 +8,16 @@ import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
 import { api } from '../src/api';
 import { useAuth } from '../src/auth/AuthContext';
-import { COLORS, SPACING, RADIUS, FONT, CATEGORIES, CURRENCIES, currencySymbol } from '../src/theme';
+import { SPACING, RADIUS, FONT, CATEGORIES, CURRENCIES, currencySymbol } from '../src/theme'
+import { useTheme } from '../src/theme/ThemeContext';
 import { takePendingReceipt } from '../src/pendingReceipt';
 
 const EQUAL = 'equal' as const;
 const CUSTOM = 'custom' as const;
 
 export default function AddExpense() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
@@ -162,12 +165,12 @@ export default function AddExpense() {
 
   return (
     <KeyboardAvoidingView
-      style={{ flex: 1, backgroundColor: COLORS.surface }}
+      style={{ flex: 1, backgroundColor: colors.surface }}
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
     >
       <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
         <Pressable onPress={() => router.back()} hitSlop={12} testID="close-modal">
-          <Feather name="x" size={24} color={COLORS.onSurface} />
+          <Feather name="x" size={24} color={colors.onSurface} />
         </Pressable>
         <Text style={styles.title}>New expense</Text>
         <Pressable
@@ -175,7 +178,7 @@ export default function AddExpense() {
           style={styles.scanBtn}
           testID="open-scan"
         >
-          <Feather name="camera" size={16} color={COLORS.brand} />
+          <Feather name="camera" size={16} color={colors.brand} />
           <Text style={styles.scanText}>Scan</Text>
         </Pressable>
       </View>
@@ -198,7 +201,7 @@ export default function AddExpense() {
               value={amount}
               onChangeText={setAmount}
               placeholder="0.00"
-              placeholderTextColor={COLORS.onSurfaceTertiary}
+              placeholderTextColor={colors.onSurfaceTertiary}
               keyboardType="decimal-pad"
               style={styles.amountInput}
               testID="amount-input"
@@ -212,7 +215,7 @@ export default function AddExpense() {
           value={merchant}
           onChangeText={setMerchant}
           placeholder="e.g. Starbucks"
-          placeholderTextColor={COLORS.onSurfaceTertiary}
+          placeholderTextColor={colors.onSurfaceTertiary}
           style={styles.input}
           testID="merchant-input"
         />
@@ -229,7 +232,7 @@ export default function AddExpense() {
                 style={[styles.catChip, active && { borderColor: c.color, backgroundColor: c.color + '18' }]}
                 testID={`cat-${c.key}`}
               >
-                <Feather name={c.icon as any} size={14} color={active ? c.color : COLORS.onSurfaceSecondary} />
+                <Feather name={c.icon as any} size={14} color={active ? c.color : colors.onSurfaceSecondary} />
                 <Text style={[styles.catText, active && { color: c.color, fontWeight: '700' }]}>{c.key}</Text>
               </Pressable>
             );
@@ -247,11 +250,11 @@ export default function AddExpense() {
                   <Pressable
                     key={g.group_id}
                     onPress={() => pickGroup(g.group_id)}
-                    style={[styles.catChip, active && { borderColor: COLORS.brand, backgroundColor: COLORS.brandTertiary }]}
+                    style={[styles.catChip, active && { borderColor: colors.brand, backgroundColor: colors.brandTertiary }]}
                     testID={`grp-${g.group_id}`}
                   >
-                    <Feather name="folder" size={14} color={active ? COLORS.brand : COLORS.onSurfaceSecondary} />
-                    <Text style={[styles.catText, active && { color: COLORS.brand, fontWeight: '700' }]}>{g.name}</Text>
+                    <Feather name="folder" size={14} color={active ? colors.brand : colors.onSurfaceSecondary} />
+                    <Text style={[styles.catText, active && { color: colors.brand, fontWeight: '700' }]}>{g.name}</Text>
                   </Pressable>
                 );
               })}
@@ -274,10 +277,10 @@ export default function AddExpense() {
                   style={[styles.friendChip, active && styles.friendChipActive]}
                   testID={`friend-chip-${f.friend_id}`}
                 >
-                  <View style={[styles.miniAvatar, active && { backgroundColor: COLORS.brand }]}>
+                  <View style={[styles.miniAvatar, active && { backgroundColor: colors.brand }]}>
                     <Text style={styles.miniAvatarText}>{(f.name || '?').slice(0,1).toUpperCase()}</Text>
                   </View>
-                  <Text style={[styles.friendText, active && { color: COLORS.brand, fontWeight: '700' }]}>{f.name}</Text>
+                  <Text style={[styles.friendText, active && { color: colors.brand, fontWeight: '700' }]}>{f.name}</Text>
                 </Pressable>
               );
             })}
@@ -295,7 +298,7 @@ export default function AddExpense() {
                   style={[styles.modeChip, splitMode === m && styles.modeChipActive]}
                   testID={`split-mode-${m}`}
                 >
-                  <Feather name={m === EQUAL ? 'divide' : 'sliders'} size={14} color={splitMode === m ? '#FFF' : COLORS.onSurfaceSecondary} />
+                  <Feather name={m === EQUAL ? 'divide' : 'sliders'} size={14} color={splitMode === m ? '#FFF' : colors.onSurfaceSecondary} />
                   <Text style={[styles.modeText, splitMode === m && { color: '#FFF' }]}>
                     {m === EQUAL ? 'Equal' : 'Custom ratio'}
                   </Text>
@@ -318,7 +321,7 @@ export default function AddExpense() {
                         onChangeText={(v) => setShares(s => ({ ...s, [pid]: v.replace(/[^0-9.]/g, '') }))}
                         keyboardType="decimal-pad"
                         placeholder="1"
-                        placeholderTextColor={COLORS.onSurfaceTertiary}
+                        placeholderTextColor={colors.onSurfaceTertiary}
                         style={styles.shareInput}
                         testID={`share-input-${pid}`}
                       />
@@ -346,7 +349,7 @@ export default function AddExpense() {
           value={notes}
           onChangeText={setNotes}
           placeholder="Add note..."
-          placeholderTextColor={COLORS.onSurfaceTertiary}
+          placeholderTextColor={colors.onSurfaceTertiary}
           style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
           multiline
           testID="notes-input"
@@ -364,11 +367,11 @@ export default function AddExpense() {
         ) : (
           <View style={styles.photoRow}>
             <Pressable onPress={() => attachPhoto('camera')} style={styles.photoBtn} testID="attach-photo-camera">
-              <Feather name="camera" size={16} color={COLORS.onSurface} />
+              <Feather name="camera" size={16} color={colors.onSurface} />
               <Text style={styles.photoText}>Photo</Text>
             </Pressable>
             <Pressable onPress={() => attachPhoto('gallery')} style={styles.photoBtn} testID="attach-photo-gallery">
-              <Feather name="image" size={16} color={COLORS.onSurface} />
+              <Feather name="image" size={16} color={colors.onSurface} />
               <Text style={styles.photoText}>Upload</Text>
             </Pressable>
           </View>
@@ -389,49 +392,49 @@ export default function AddExpense() {
   );
 }
 
-const styles = StyleSheet.create({
-  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: COLORS.border },
-  title: { fontSize: FONT.size.lg, fontWeight: '700', color: COLORS.onSurface },
-  scanBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: COLORS.brandTertiary, paddingHorizontal: SPACING.md, height: 32, borderRadius: RADIUS.pill },
-  scanText: { color: COLORS.brand, fontWeight: '700' },
+const makeStyles = (colors: any) => StyleSheet.create({
+  header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  title: { fontSize: FONT.size.lg, fontWeight: '700', color: colors.onSurface },
+  scanBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.brandTertiary, paddingHorizontal: SPACING.md, height: 32, borderRadius: RADIUS.pill },
+  scanText: { color: colors.brand, fontWeight: '700' },
   amountWrap: { alignItems: 'center', paddingVertical: SPACING.lg, gap: SPACING.md },
-  currencyToggle: { flexDirection: 'row', gap: 4, backgroundColor: COLORS.surfaceSecondary, borderRadius: RADIUS.pill, padding: 4 },
+  currencyToggle: { flexDirection: 'row', gap: 4, backgroundColor: colors.surfaceSecondary, borderRadius: RADIUS.pill, padding: 4 },
   curBtn: { paddingHorizontal: SPACING.md, height: 32, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
-  curBtnActive: { backgroundColor: COLORS.onSurface },
-  curText: { fontWeight: '700', color: COLORS.onSurfaceSecondary },
+  curBtnActive: { backgroundColor: colors.onSurface },
+  curText: { fontWeight: '700', color: colors.onSurfaceSecondary },
   amountRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  amountSym: { fontSize: FONT.size.hero, color: COLORS.onSurfaceTertiary, fontWeight: '700' },
-  amountInput: { fontSize: 56, fontWeight: '800', color: COLORS.onSurface, minWidth: 140, textAlign: 'left' },
-  label: { fontSize: FONT.size.sm, fontWeight: '700', color: COLORS.onSurfaceTertiary, textTransform: 'uppercase', marginTop: SPACING.lg, marginBottom: SPACING.sm, letterSpacing: 0.5 },
-  input: { backgroundColor: COLORS.surfaceSecondary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 52, fontSize: FONT.size.lg, color: COLORS.onSurface },
-  hint: { fontSize: FONT.size.base, color: COLORS.onSurfaceTertiary },
-  catChip: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, height: 36, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
-  catText: { fontSize: FONT.size.base, color: COLORS.onSurfaceSecondary, fontWeight: '600' },
-  friendChip: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.sm, height: 40, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface, paddingRight: SPACING.md },
-  friendChipActive: { borderColor: COLORS.brand, backgroundColor: COLORS.brandTertiary },
-  miniAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.onSurfaceTertiary, alignItems: 'center', justifyContent: 'center' },
+  amountSym: { fontSize: FONT.size.hero, color: colors.onSurfaceTertiary, fontWeight: '700' },
+  amountInput: { fontSize: 56, fontWeight: '800', color: colors.onSurface, minWidth: 140, textAlign: 'left' },
+  label: { fontSize: FONT.size.sm, fontWeight: '700', color: colors.onSurfaceTertiary, textTransform: 'uppercase', marginTop: SPACING.lg, marginBottom: SPACING.sm, letterSpacing: 0.5 },
+  input: { backgroundColor: colors.surfaceSecondary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 52, fontSize: FONT.size.lg, color: colors.onSurface },
+  hint: { fontSize: FONT.size.base, color: colors.onSurfaceTertiary },
+  catChip: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, height: 36, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  catText: { fontSize: FONT.size.base, color: colors.onSurfaceSecondary, fontWeight: '600' },
+  friendChip: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.sm, height: 40, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingRight: SPACING.md },
+  friendChipActive: { borderColor: colors.brand, backgroundColor: colors.brandTertiary },
+  miniAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.onSurfaceTertiary, alignItems: 'center', justifyContent: 'center' },
   miniAvatarText: { color: '#FFF', fontWeight: '700', fontSize: FONT.size.sm },
-  friendText: { fontWeight: '600', color: COLORS.onSurfaceSecondary },
+  friendText: { fontWeight: '600', color: colors.onSurfaceSecondary },
 
   splitModeRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.lg },
-  modeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, height: 36, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
-  modeChipActive: { backgroundColor: COLORS.onSurface, borderColor: COLORS.onSurface },
-  modeText: { fontWeight: '700', color: COLORS.onSurfaceSecondary },
+  modeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, height: 36, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  modeChipActive: { backgroundColor: colors.onSurface, borderColor: colors.onSurface },
+  modeText: { fontWeight: '700', color: colors.onSurfaceSecondary },
 
-  sharesCard: { marginTop: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceSecondary, gap: SPACING.sm },
-  sharesHint: { fontSize: FONT.size.sm, color: COLORS.onSurfaceTertiary },
+  sharesCard: { marginTop: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: colors.surfaceSecondary, gap: SPACING.sm },
+  sharesHint: { fontSize: FONT.size.sm, color: colors.onSurfaceTertiary },
   shareRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
-  shareLabel: { flex: 1, fontSize: FONT.size.base, color: COLORS.onSurface, fontWeight: '600' },
-  shareInput: { width: 64, height: 36, borderRadius: RADIUS.sm, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: SPACING.sm, textAlign: 'center', fontWeight: '700', color: COLORS.onSurface },
-  sharePreview: { minWidth: 78, textAlign: 'right', fontSize: FONT.size.base, fontWeight: '700', color: COLORS.brand },
+  shareLabel: { flex: 1, fontSize: FONT.size.base, color: colors.onSurface, fontWeight: '600' },
+  shareInput: { width: 64, height: 36, borderRadius: RADIUS.sm, backgroundColor: colors.surface, borderWidth: 1, borderColor: colors.border, paddingHorizontal: SPACING.sm, textAlign: 'center', fontWeight: '700', color: colors.onSurface },
+  sharePreview: { minWidth: 78, textAlign: 'right', fontSize: FONT.size.base, fontWeight: '700', color: colors.brand },
 
   photoRow: { flexDirection: 'row', gap: SPACING.sm },
-  photoBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 48, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceSecondary },
-  photoText: { fontWeight: '700', color: COLORS.onSurface },
-  receiptPreview: { height: 180, borderRadius: RADIUS.md, overflow: 'hidden', backgroundColor: COLORS.surfaceSecondary },
+  photoBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 48, borderRadius: RADIUS.md, backgroundColor: colors.surfaceSecondary },
+  photoText: { fontWeight: '700', color: colors.onSurface },
+  receiptPreview: { height: 180, borderRadius: RADIUS.md, overflow: 'hidden', backgroundColor: colors.surfaceSecondary },
   receiptClear: { position: 'absolute', top: 8, right: 8, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
 
-  saveBar: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border },
-  saveBtn: { backgroundColor: COLORS.brand, height: 54, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
+  saveBar: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
+  saveBtn: { backgroundColor: colors.brand, height: 54, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
   saveText: { color: '#FFF', fontSize: FONT.size.lg, fontWeight: '700' },
 });

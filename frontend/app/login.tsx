@@ -1,12 +1,15 @@
 import { View, Text, StyleSheet, Pressable, ActivityIndicator } from 'react-native';
 import { Image } from 'expo-image';
-import { useState } from 'react';
+import { useState , useMemo} from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '../src/auth/AuthContext';
-import { COLORS, SPACING, RADIUS, FONT } from '../src/theme';
+import { SPACING, RADIUS, FONT } from '../src/theme'
+import { useTheme } from '../src/theme/ThemeContext';
 import Feather from '@react-native-vector-icons/feather';
 
 export default function Login() {
+  const { colors } = useTheme();
+  const styles = useMemo(() => makeStyles(colors), [colors]);
   const { signIn } = useAuth();
   const insets = useSafeAreaInsets();
   const [busy, setBusy] = useState(false);
@@ -20,7 +23,7 @@ export default function Login() {
     <View style={[styles.root, { paddingTop: insets.top, paddingBottom: insets.bottom + SPACING.xl }]} testID="login-screen">
       <View style={styles.hero}>
         <View style={styles.logoWrap} testID="login-logo">
-          <Feather name="pie-chart" size={44} color={COLORS.brand} />
+          <Feather name="pie-chart" size={44} color={colors.brand} />
         </View>
         <Text style={styles.brand}>SplitSync</Text>
         <Text style={styles.tag}>Track expenses. Scan receipts. Split with friends.</Text>
@@ -34,7 +37,7 @@ export default function Login() {
         ].map((f) => (
           <View key={f.icon} style={styles.featureRow}>
             <View style={styles.featureIcon}>
-              <Feather name={f.icon as any} size={18} color={COLORS.brand} />
+              <Feather name={f.icon as any} size={18} color={colors.brand} />
             </View>
             <Text style={styles.featureText}>{f.text}</Text>
           </View>
@@ -49,7 +52,7 @@ export default function Login() {
           testID="google-signin-button"
         >
           {busy ? (
-            <ActivityIndicator color={COLORS.onSurface} />
+            <ActivityIndicator color={colors.onSurface} />
           ) : (
             <>
               <Image
@@ -67,23 +70,23 @@ export default function Login() {
   );
 }
 
-const styles = StyleSheet.create({
-  root: { flex: 1, backgroundColor: COLORS.surface, paddingHorizontal: SPACING.xl, justifyContent: 'space-between' },
+const makeStyles = (colors: any) => StyleSheet.create({
+  root: { flex: 1, backgroundColor: colors.surface, paddingHorizontal: SPACING.xl, justifyContent: 'space-between' },
   hero: { alignItems: 'flex-start', marginTop: SPACING.xxxl },
   logoWrap: {
     width: 80, height: 80, borderRadius: RADIUS.lg,
-    backgroundColor: COLORS.brandTertiary, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.brandTertiary, alignItems: 'center', justifyContent: 'center',
     marginBottom: SPACING.lg,
   },
-  brand: { fontSize: FONT.size.hero, fontWeight: '800', color: COLORS.onSurface, letterSpacing: -0.5 },
-  tag: { marginTop: SPACING.sm, fontSize: FONT.size.lg, color: COLORS.onSurfaceSecondary, lineHeight: 22 },
+  brand: { fontSize: FONT.size.hero, fontWeight: '800', color: colors.onSurface, letterSpacing: -0.5 },
+  tag: { marginTop: SPACING.sm, fontSize: FONT.size.lg, color: colors.onSurfaceSecondary, lineHeight: 22 },
   features: { gap: SPACING.md },
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   featureIcon: {
     width: 36, height: 36, borderRadius: RADIUS.md,
-    backgroundColor: COLORS.brandTertiary, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: colors.brandTertiary, alignItems: 'center', justifyContent: 'center',
   },
-  featureText: { fontSize: FONT.size.lg, color: COLORS.onSurface, fontWeight: '500' },
+  featureText: { fontSize: FONT.size.lg, color: colors.onSurface, fontWeight: '500' },
   ctaWrap: { gap: SPACING.md, alignItems: 'center' },
   googleBtn: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
@@ -91,10 +94,10 @@ const styles = StyleSheet.create({
     width: '100%',
     height: 56,
     borderRadius: RADIUS.pill,
-    backgroundColor: COLORS.surface,
-    borderWidth: 1, borderColor: COLORS.border,
+    backgroundColor: colors.surface,
+    borderWidth: 1, borderColor: colors.border,
   },
   gIcon: { width: 22, height: 22 },
-  googleText: { fontSize: FONT.size.lg, fontWeight: '600', color: COLORS.onSurface },
-  small: { fontSize: FONT.size.sm, color: COLORS.onSurfaceTertiary },
+  googleText: { fontSize: FONT.size.lg, fontWeight: '600', color: colors.onSurface },
+  small: { fontSize: FONT.size.sm, color: colors.onSurfaceTertiary },
 });

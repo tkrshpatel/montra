@@ -1,23 +1,11 @@
-export const COLORS = {
-  surface: '#FFFFFF',
-  onSurface: '#1A1A1A',
-  surfaceSecondary: '#F5F5F7',
-  onSurfaceSecondary: '#4A4A4A',
-  surfaceTertiary: '#EBEBF0',
-  onSurfaceTertiary: '#8E8E93',
-  surfaceInverse: '#1A1A1A',
-  onSurfaceInverse: '#FFFFFF',
-  brand: '#4D7358',
-  brandSecondary: '#85A38F',
-  brandTertiary: '#E3EDE6',
-  onBrandTertiary: '#4D7358',
-  success: '#4D7358',
-  warning: '#FF9500',
-  error: '#FF3B30',
-  info: '#8E8E93',
-  border: '#E5E5EA',
-  borderStrong: '#C7C7CC',
-};
+import { LIGHT, DARK, Palette } from './theme/palette';
+export { useTheme } from './theme/ThemeContext';
+export type { Palette } from './theme/palette';
+
+// Legacy default palette — used only by module-scope styles that haven't been
+// migrated yet. New code should use `useTheme()` and `makeStyles(colors)`.
+export const COLORS: Palette = LIGHT;
+export const DARK_COLORS: Palette = DARK;
 
 export const SPACING = {
   xs: 4,
@@ -29,10 +17,10 @@ export const SPACING = {
   xxxl: 48,
 };
 
-export const RADIUS = { sm: 6, md: 12, lg: 20, pill: 999 };
+export const RADIUS = { sm: 8, md: 14, lg: 24, xl: 28, pill: 999 };
 
 export const FONT = {
-  size: { sm: 12, base: 14, lg: 16, xl: 20, xxl: 24, xxxl: 32, hero: 40 },
+  size: { sm: 12, base: 14, lg: 16, xl: 20, xxl: 24, xxxl: 30, hero: 40 },
 };
 
 export const CATEGORIES = [
@@ -62,4 +50,15 @@ export function currencySymbol(cur?: string | null) {
   if (c === 'GBP') return '\u00A3';
   if (c === 'JPY') return '\u00A5';
   return c + ' ';
+}
+
+// Common elevation preset for cards
+export function elevation(colors: Palette) {
+  return {
+    shadowColor: colors.shadow,
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 1,
+    shadowRadius: 16,
+    elevation: 4,
+  };
 }

@@ -1,17 +1,18 @@
 import { Tabs } from 'expo-router';
 import Feather from '@react-native-vector-icons/feather';
-import { COLORS } from '../../src/theme';
+import { useTheme } from '../../src/theme';
 
 export default function TabsLayout() {
+  const { colors } = useTheme();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: COLORS.brand,
-        tabBarInactiveTintColor: COLORS.onSurfaceTertiary,
+        tabBarActiveTintColor: colors.brand,
+        tabBarInactiveTintColor: colors.onSurfaceTertiary,
         tabBarStyle: {
-          backgroundColor: COLORS.surface,
-          borderTopColor: COLORS.border,
+          backgroundColor: colors.surface,
+          borderTopColor: colors.border,
         },
         tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
         tabBarItemStyle: { alignSelf: 'center' },
