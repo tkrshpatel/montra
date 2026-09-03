@@ -49,7 +49,7 @@ export default function Profile() {
 
       <Text style={styles.section}>Currency</Text>
       <View style={styles.currencyRow}>
-        {['USD', 'INR'].map(c => (
+        {['USD', 'INR', 'EUR', 'GBP', 'JPY'].map(c => (
           <Pressable
             key={c}
             onPress={() => setCurrency(c)}
@@ -116,8 +116,8 @@ const styles = StyleSheet.create({
   userName: { fontSize: FONT.size.xl, fontWeight: '700', color: COLORS.onSurface },
   userEmail: { fontSize: FONT.size.base, color: COLORS.onSurfaceTertiary, marginTop: 2 },
   section: { fontSize: FONT.size.base, fontWeight: '700', color: COLORS.onSurfaceTertiary, paddingHorizontal: SPACING.lg, marginTop: SPACING.md, marginBottom: SPACING.sm, textTransform: 'uppercase', letterSpacing: 0.5 },
-  currencyRow: { flexDirection: 'row', gap: SPACING.sm, paddingHorizontal: SPACING.lg },
-  currencyChip: { flex: 1, height: 48, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
+  currencyRow: { flexDirection: 'row', gap: SPACING.sm, paddingHorizontal: SPACING.lg, flexWrap: 'wrap' },
+  currencyChip: { minWidth: 60, paddingHorizontal: SPACING.md, height: 48, borderRadius: RADIUS.md, borderWidth: 1, borderColor: COLORS.border, alignItems: 'center', justifyContent: 'center' },
   currencyChipActive: { borderColor: COLORS.brand, backgroundColor: COLORS.brandTertiary },
   currencyText: { fontSize: FONT.size.lg, fontWeight: '700', color: COLORS.onSurfaceSecondary },
   currencyTextActive: { color: COLORS.brand },

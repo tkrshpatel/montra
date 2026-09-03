@@ -95,9 +95,9 @@ export default function Recurring() {
           </View>
 
           <Text style={styles.label}>Currency</Text>
-          <View style={{ flexDirection: 'row', gap: SPACING.sm }}>
-            {['USD','INR'].map(c => (
-              <Pressable key={c} onPress={() => setCurrency(c)} style={[styles.pill, currency === c && styles.pillActive]} testID={`rec-cur-${c}`}>
+          <View style={{ flexDirection: 'row', gap: SPACING.sm, flexWrap: 'wrap' }}>
+            {['USD','INR','EUR','GBP','JPY'].map(c => (
+              <Pressable key={c} onPress={() => setCurrency(c)} style={[styles.pill, currency === c && styles.pillActive, { flex: 0, paddingHorizontal: SPACING.md }]} testID={`rec-cur-${c}`}>
                 <Text style={[styles.pillText, currency === c && { color: '#FFF' }]}>{c}</Text>
               </Pressable>
             ))}

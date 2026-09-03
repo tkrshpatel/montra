@@ -57,6 +57,7 @@ class ExpenseCreate(BaseModel):
     notes: Optional[str] = None
     date: Optional[str] = None
     split_with: List[str] = []
+    shares: Optional[List[Dict[str, Any]]] = None  # [{"participant_id": "self"|friend_id, "share": number}]
     group_id: Optional[str] = None
     receipt_image_base64: Optional[str] = None
 
@@ -71,6 +72,7 @@ class Expense(BaseModel):
     notes: Optional[str] = None
     date: str
     split_with: List[str] = []
+    shares: Optional[List[Dict[str, Any]]] = None
     group_id: Optional[str] = None
     created_at: str
     is_split: bool = False
@@ -255,14 +257,18 @@ async def auth_logout(authorization: Optional[str] = Header(None)):
     return {"ok": True}
 
 
+SUPPORTED_CURRENCIES = ("USD", "INR", "EUR", "GBP", "JPY")
+
+
 @api_router.post("/auth/currency", response_model=UserPublic)
 async def update_currency(payload: CurrencyUpdate, user=Depends(get_current_user)):
-    if payload.currency not in ("USD", "INR"):
-        raise HTTPException(status_code=400, detail="Currency must be USD or INR")
-    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"currency": payload.currency}})
+    cur = (payload.currency or "").upper()
+    if cur not in SUPPORTED_CURRENCIES:
+        raise HTTPException(status_code=400, detail=f"Currency must be one of {SUPPORTED_CURRENCIES}")
+    await db.users.update_one({"user_id": user["user_id"]}, {"$set": {"currency": cur}})
     return UserPublic(
         user_id=user["user_id"], email=user["email"], name=user["name"],
-        picture=user.get("picture"), currency=payload.currency,
+        picture=user.get("picture"), currency=cur,
     )
 
 
@@ -427,18 +433,40 @@ async def create_expense(payload: ExpenseCreate, user=Depends(get_current_user))
     expense_id = f"exp_{uuid.uuid4().hex[:12]}"
     date_str = payload.date or datetime.now(timezone.utc).isoformat()
     split_with = payload.split_with or []
-    if payload.group_id and not split_with:
+    if payload.group_id and not split_with and not payload.shares:
         grp = await db.groups.find_one({"group_id": payload.group_id, "user_id": user["user_id"]}, {"_id": 0})
         if grp:
             split_with = grp.get("member_ids", [])
+
+    shares = None
+    if payload.shares:
+        # sanitize: keep only valid positive shares; ensure participant_id string
+        cleaned = []
+        friend_ids = set()
+        for s in payload.shares:
+            pid = str(s.get("participant_id") or "").strip()
+            try:
+                w = float(s.get("share"))
+            except Exception:
+                continue
+            if pid and w > 0:
+                cleaned.append({"participant_id": pid, "share": w})
+                if pid != "self":
+                    friend_ids.add(pid)
+        shares = cleaned if cleaned else None
+        # derive split_with from shares for compatibility
+        if shares:
+            split_with = [pid for pid in friend_ids]
+
     doc = {
         "expense_id": expense_id, "user_id": user["user_id"],
         "amount": float(payload.amount), "currency": payload.currency,
         "category": payload.category, "merchant": payload.merchant,
         "notes": payload.notes, "date": date_str,
         "split_with": split_with,
+        "shares": shares,
         "group_id": payload.group_id,
-        "is_split": bool(split_with),
+        "is_split": bool(split_with) or bool(shares and len(shares) > 1),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.expenses.insert_one(doc)
@@ -519,6 +547,8 @@ async def _fetch_fx() -> Dict[str, Any]:
         "USD": 1.0,
         "INR": float(rates.get("INR", 83.0)),
         "EUR": float(rates.get("EUR", 0.92)),
+        "GBP": float(rates.get("GBP", 0.79)),
+        "JPY": float(rates.get("JPY", 150.0)),
     }
 
 
@@ -537,7 +567,7 @@ async def get_rates() -> Dict[str, float]:
             logger.warning(f"FX fetch failed, using fallback: {e}")
             if _FX_CACHE.get("rates"):
                 return _FX_CACHE["rates"]
-            fallback = {"USD": 1.0, "INR": 83.0, "EUR": 0.92}
+            fallback = {"USD": 1.0, "INR": 83.0, "EUR": 0.92, "GBP": 0.79, "JPY": 150.0}
             _FX_CACHE["rates"] = fallback
             _FX_CACHE["updated_at"] = now
             return fallback
@@ -580,6 +610,23 @@ async def get_balances(user=Depends(get_current_user)):
         {"_id": 0, "receipt_image_base64": 0},
     )
     async for exp in exp_cursor:
+        shares = exp.get("shares")
+        if shares:
+            total_w = sum(float(s.get("share", 0)) for s in shares)
+            if total_w <= 0:
+                continue
+            for s in shares:
+                pid = s.get("participant_id")
+                if pid == "self" or not pid:
+                    continue
+                w = float(s.get("share", 0))
+                if w <= 0:
+                    continue
+                share_amt = float(exp["amount"]) * (w / total_w)
+                share_home = await convert_amount(share_amt, exp.get("currency", home), home)
+                if pid in balances:
+                    balances[pid] += share_home
+            continue
         split_with = exp.get("split_with") or []
         if not split_with:
             continue

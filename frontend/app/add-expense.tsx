@@ -1,12 +1,15 @@
 import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Feather from '@react-native-vector-icons/feather';
 import * as Haptics from 'expo-haptics';
 import { api } from '../src/api';
 import { useAuth } from '../src/auth/AuthContext';
-import { COLORS, SPACING, RADIUS, FONT, CATEGORIES, currencySymbol } from '../src/theme';
+import { COLORS, SPACING, RADIUS, FONT, CATEGORIES, CURRENCIES, currencySymbol } from '../src/theme';
+
+const EQUAL = 'equal' as const;
+const CUSTOM = 'custom' as const;
 
 export default function AddExpense() {
   const insets = useSafeAreaInsets();
@@ -23,6 +26,8 @@ export default function AddExpense() {
   const [groups, setGroups] = useState<any[]>([]);
   const [groupId, setGroupId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [splitMode, setSplitMode] = useState<typeof EQUAL | typeof CUSTOM>(EQUAL);
+  const [shares, setShares] = useState<Record<string, string>>({ self: '1' }); // string for TextInput
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -34,8 +39,22 @@ export default function AddExpense() {
     if (params.amount) setAmount(String(params.amount));
     if (params.merchant) setMerchant(String(params.merchant));
     if (params.category) setCategory(String(params.category));
-    if (params.currency && ['USD','INR'].includes(String(params.currency))) setCurrency(String(params.currency));
+    if (params.currency && (CURRENCIES as readonly string[]).includes(String(params.currency))) {
+      setCurrency(String(params.currency));
+    }
   }, [params.amount, params.merchant, params.category, params.currency]);
+
+  const selectedIds = useMemo(() => Object.keys(selected).filter(k => selected[k]), [selected]);
+
+  // Keep shares object aligned with participants when custom mode
+  useEffect(() => {
+    if (splitMode !== CUSTOM) return;
+    setShares(prev => {
+      const next: Record<string, string> = { self: prev.self || '1' };
+      selectedIds.forEach(id => { next[id] = prev[id] || '1'; });
+      return next;
+    });
+  }, [selectedIds, splitMode]);
 
   const toggle = (fid: string) => {
     Haptics.selectionAsync().catch(() => {});
@@ -56,22 +75,52 @@ export default function AddExpense() {
     setSelected(next);
   };
 
+  const amt = parseFloat(amount) || 0;
+
+  // Per-participant preview
+  const preview = useMemo(() => {
+    if (!selectedIds.length) return null;
+    if (splitMode === EQUAL) {
+      const per = amt / (1 + selectedIds.length);
+      const rows: { id: string; label: string; amount: number }[] = [
+        { id: 'self', label: 'You', amount: per },
+        ...selectedIds.map(id => ({ id, label: friends.find(f => f.friend_id === id)?.name || 'Friend', amount: per })),
+      ];
+      return rows;
+    }
+    const total = Object.values(shares).reduce((s, v) => s + (parseFloat(v) || 0), 0);
+    if (total <= 0) return null;
+    const rows = [
+      { id: 'self', label: 'You', amount: amt * ((parseFloat(shares.self) || 0) / total) },
+      ...selectedIds.map(id => ({
+        id, label: friends.find(f => f.friend_id === id)?.name || 'Friend',
+        amount: amt * ((parseFloat(shares[id]) || 0) / total),
+      })),
+    ];
+    return rows;
+  }, [splitMode, selectedIds, shares, amt, friends]);
+
   const save = async () => {
-    const amt = parseFloat(amount);
     if (!amt || amt <= 0) return;
     setSaving(true);
     try {
-      const split_with = Object.keys(selected).filter(k => selected[k]);
-      await api.createExpense({
-        amount: amt,
-        currency,
-        category,
+      const body: any = {
+        amount: amt, currency, category,
         merchant: merchant || null,
         notes: notes || null,
-        split_with,
         group_id: groupId,
         date: new Date().toISOString(),
-      });
+      };
+      if (selectedIds.length && splitMode === CUSTOM) {
+        const arr = [
+          { participant_id: 'self', share: parseFloat(shares.self) || 0 },
+          ...selectedIds.map(id => ({ participant_id: id, share: parseFloat(shares[id]) || 0 })),
+        ].filter(s => s.share > 0);
+        body.shares = arr;
+      } else {
+        body.split_with = selectedIds;
+      }
+      await api.createExpense(body);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
       router.back();
     } catch (e) {
@@ -104,15 +153,17 @@ export default function AddExpense() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: SPACING.xxxl }} keyboardShouldPersistTaps="handled">
-        {/* Amount */}
+        {/* Amount + currency */}
         <View style={styles.amountWrap}>
-          <View style={styles.currencyToggle}>
-            {['USD','INR'].map(c => (
-              <Pressable key={c} onPress={() => setCurrency(c)} style={[styles.curBtn, currency === c && styles.curBtnActive]} testID={`cur-${c}`}>
-                <Text style={[styles.curText, currency === c && { color: '#FFF' }]}>{c}</Text>
-              </Pressable>
-            ))}
-          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 4, paddingHorizontal: SPACING.sm }}>
+            <View style={styles.currencyToggle}>
+              {CURRENCIES.map(c => (
+                <Pressable key={c} onPress={() => setCurrency(c)} style={[styles.curBtn, currency === c && styles.curBtnActive]} testID={`cur-${c}`}>
+                  <Text style={[styles.curText, currency === c && { color: '#FFF' }]}>{c}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </ScrollView>
           <View style={styles.amountRow}>
             <Text style={styles.amountSym}>{sym}</Text>
             <TextInput
@@ -205,6 +256,62 @@ export default function AddExpense() {
           </ScrollView>
         )}
 
+        {/* Split mode + shares editor */}
+        {selectedIds.length > 0 ? (
+          <View>
+            <View style={styles.splitModeRow}>
+              {([EQUAL, CUSTOM] as const).map(m => (
+                <Pressable
+                  key={m}
+                  onPress={() => setSplitMode(m)}
+                  style={[styles.modeChip, splitMode === m && styles.modeChipActive]}
+                  testID={`split-mode-${m}`}
+                >
+                  <Feather name={m === EQUAL ? 'divide' : 'sliders'} size={14} color={splitMode === m ? '#FFF' : COLORS.onSurfaceSecondary} />
+                  <Text style={[styles.modeText, splitMode === m && { color: '#FFF' }]}>
+                    {m === EQUAL ? 'Equal' : 'Custom ratio'}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+
+            {splitMode === CUSTOM ? (
+              <View style={styles.sharesCard}>
+                <Text style={styles.sharesHint}>Set a weight for each participant. Amount is split proportionally.</Text>
+                {['self', ...selectedIds].map(pid => {
+                  const label = pid === 'self' ? 'You' : (friends.find(f => f.friend_id === pid)?.name || 'Friend');
+                  const share = shares[pid] ?? '1';
+                  const row = preview?.find(r => r.id === pid);
+                  return (
+                    <View key={pid} style={styles.shareRow} testID={`share-row-${pid}`}>
+                      <Text style={styles.shareLabel}>{label}</Text>
+                      <TextInput
+                        value={share}
+                        onChangeText={(v) => setShares(s => ({ ...s, [pid]: v.replace(/[^0-9.]/g, '') }))}
+                        keyboardType="decimal-pad"
+                        placeholder="1"
+                        placeholderTextColor={COLORS.onSurfaceTertiary}
+                        style={styles.shareInput}
+                        testID={`share-input-${pid}`}
+                      />
+                      <Text style={styles.sharePreview}>{sym}{(row?.amount || 0).toFixed(2)}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            ) : preview ? (
+              <View style={styles.sharesCard}>
+                {preview.map(r => (
+                  <View key={r.id} style={styles.shareRow}>
+                    <Text style={styles.shareLabel}>{r.label}</Text>
+                    <Text style={styles.sharePreview}>{sym}{r.amount.toFixed(2)}</Text>
+                  </View>
+                ))}
+              </View>
+            ) : null}
+          </View>
+        ) : null}
+
         {/* Notes */}
         <Text style={styles.label}>Notes (optional)</Text>
         <TextInput
@@ -255,6 +362,19 @@ const styles = StyleSheet.create({
   miniAvatar: { width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.onSurfaceTertiary, alignItems: 'center', justifyContent: 'center' },
   miniAvatarText: { color: '#FFF', fontWeight: '700', fontSize: FONT.size.sm },
   friendText: { fontWeight: '600', color: COLORS.onSurfaceSecondary },
+
+  splitModeRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.lg },
+  modeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, height: 36, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: COLORS.border, backgroundColor: COLORS.surface },
+  modeChipActive: { backgroundColor: COLORS.onSurface, borderColor: COLORS.onSurface },
+  modeText: { fontWeight: '700', color: COLORS.onSurfaceSecondary },
+
+  sharesCard: { marginTop: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: COLORS.surfaceSecondary, gap: SPACING.sm },
+  sharesHint: { fontSize: FONT.size.sm, color: COLORS.onSurfaceTertiary },
+  shareRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
+  shareLabel: { flex: 1, fontSize: FONT.size.base, color: COLORS.onSurface, fontWeight: '600' },
+  shareInput: { width: 64, height: 36, borderRadius: RADIUS.sm, backgroundColor: COLORS.surface, borderWidth: 1, borderColor: COLORS.border, paddingHorizontal: SPACING.sm, textAlign: 'center', fontWeight: '700', color: COLORS.onSurface },
+  sharePreview: { minWidth: 78, textAlign: 'right', fontSize: FONT.size.base, fontWeight: '700', color: COLORS.brand },
+
   saveBar: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, backgroundColor: COLORS.surface, borderTopWidth: 1, borderTopColor: COLORS.border },
   saveBtn: { backgroundColor: COLORS.brand, height: 54, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
   saveText: { color: '#FFF', fontSize: FONT.size.lg, fontWeight: '700' },

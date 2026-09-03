@@ -36,30 +36,33 @@ def mongo():
 
 @pytest.fixture(scope="session", autouse=True)
 def seed_user(mongo):
-    # Clean any prior test data
-    mongo.users.delete_many({"user_id": TEST_USER_ID})
-    mongo.users.delete_many({"email": TEST_EMAIL})
-    mongo.user_sessions.delete_many({"session_token": TEST_TOKEN})
-    mongo.friends.delete_many({"user_id": TEST_USER_ID})
-    mongo.expenses.delete_many({"user_id": TEST_USER_ID})
-    mongo.settlements.delete_many({"user_id": TEST_USER_ID})
-    mongo.groups.delete_many({"user_id": TEST_USER_ID})
-    mongo.recurring.delete_many({"user_id": TEST_USER_ID})
-
-    mongo.users.insert_one({
+    from pymongo.errors import DuplicateKeyError
+    # Idempotent, xdist-safe seed: match by unique email; tolerate concurrent worker races.
+    user_doc = {
         "user_id": TEST_USER_ID,
         "email": TEST_EMAIL,
         "name": "Backend Tester",
         "picture": None,
         "currency": "USD",
         "created_at": datetime.now(timezone.utc).isoformat(),
-    })
-    mongo.user_sessions.insert_one({
-        "session_token": TEST_TOKEN,
-        "user_id": TEST_USER_ID,
-        "expires_at": datetime.now(timezone.utc) + timedelta(days=1),
-        "created_at": datetime.now(timezone.utc),
-    })
+    }
+    try:
+        mongo.users.update_one({"email": TEST_EMAIL}, {"$set": user_doc}, upsert=True)
+    except DuplicateKeyError:
+        mongo.users.update_one({"email": TEST_EMAIL}, {"$set": user_doc})
+    try:
+        mongo.user_sessions.update_one(
+            {"session_token": TEST_TOKEN},
+            {"$set": {
+                "session_token": TEST_TOKEN,
+                "user_id": TEST_USER_ID,
+                "expires_at": datetime.now(timezone.utc) + timedelta(days=1),
+                "created_at": datetime.now(timezone.utc),
+            }},
+            upsert=True,
+        )
+    except DuplicateKeyError:
+        pass
     yield
     # teardown
     mongo.users.delete_many({"user_id": TEST_USER_ID})

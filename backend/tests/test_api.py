@@ -63,7 +63,8 @@ class TestAuth:
         auth_client.post(f"{base_url}/api/auth/currency", json={"currency": "USD"})
 
     def test_currency_update_invalid(self, auth_client, base_url):
-        r = auth_client.post(f"{base_url}/api/auth/currency", json={"currency": "EUR"})
+        # Iteration 3: EUR/GBP/JPY now supported. Use a genuinely invalid code.
+        r = auth_client.post(f"{base_url}/api/auth/currency", json={"currency": "XYZ"})
         assert r.status_code == 400
 
 

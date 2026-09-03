@@ -51,10 +51,15 @@ export function categoryMeta(name?: string | null) {
   return CATEGORIES.find(c => c.key === name) || CATEGORIES[CATEGORIES.length - 1];
 }
 
+export const CURRENCIES = ['USD', 'INR', 'EUR', 'GBP', 'JPY'] as const;
+export type CurrencyCode = typeof CURRENCIES[number];
+
 export function currencySymbol(cur?: string | null) {
   const c = (cur || 'USD').toUpperCase();
   if (c === 'INR') return '\u20B9';
   if (c === 'USD') return '$';
   if (c === 'EUR') return '\u20AC';
+  if (c === 'GBP') return '\u00A3';
+  if (c === 'JPY') return '\u00A5';
   return c + ' ';
 }
