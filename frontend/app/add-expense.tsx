@@ -1,13 +1,15 @@
-import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, Pressable, TextInput, ScrollView, KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Animated } from 'react-native';
 import { Image } from 'expo-image';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Feather from '@react-native-vector-icons/feather';
 import * as Haptics from 'expo-haptics';
 import * as ImagePicker from 'expo-image-picker';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { api } from '../src/api';
 import { useAuth } from '../src/auth/AuthContext';
+import { useFx } from '../src/fx/FxContext';
 import { SPACING, RADIUS, FONT, CATEGORIES, CURRENCIES, currencySymbol } from '../src/theme'
 import { useTheme } from '../src/theme/ThemeContext';
 import { takePendingReceipt } from '../src/pendingReceipt';
@@ -15,12 +17,26 @@ import { takePendingReceipt } from '../src/pendingReceipt';
 const EQUAL = 'equal' as const;
 const CUSTOM = 'custom' as const;
 
+function formatMoney(v: number) {
+  return v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function formatDate(d: Date) {
+  const today = new Date();
+  const y = new Date(); y.setDate(today.getDate() - 1);
+  const same = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+  if (same(d, today)) return 'Today';
+  if (same(d, y)) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
+}
+
 export default function AddExpense() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user } = useAuth();
+  const { convert, rates } = useFx();
   const params = useLocalSearchParams<{ amount?: string; merchant?: string; category?: string; date?: string; currency?: string }>();
 
   const [amount, setAmount] = useState('');
@@ -28,15 +44,24 @@ export default function AddExpense() {
   const [notes, setNotes] = useState('');
   const [category, setCategory] = useState('Other');
   const [currency, setCurrency] = useState(user?.currency || 'USD');
+  const [date, setDate] = useState<Date>(new Date());
+  const [showDate, setShowDate] = useState(false);
   const [friends, setFriends] = useState<any[]>([]);
   const [groups, setGroups] = useState<any[]>([]);
   const [groupId, setGroupId] = useState<string | null>(null);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [splitMode, setSplitMode] = useState<typeof EQUAL | typeof CUSTOM>(EQUAL);
-  const [shares, setShares] = useState<Record<string, string>>({ self: '1' }); // string for TextInput
+  const [shares, setShares] = useState<Record<string, string>>({ self: '1' });
   const [receiptBase64, setReceiptBase64] = useState<string | null>(null);
   const [receiptUri, setReceiptUri] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [touched, setTouched] = useState<{ amount?: boolean; merchant?: boolean }>({});
+
+  const notesRef = useRef<TextInput>(null);
+
+  // Success overlay animation
+  const [showSuccess, setShowSuccess] = useState(false);
+  const successAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     api.listFriends().then(setFriends).catch(() => {});
@@ -52,7 +77,13 @@ export default function AddExpense() {
     const perm = source === 'camera'
       ? await ImagePicker.requestCameraPermissionsAsync()
       : await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (!perm.granted) return;
+    if (!perm.granted) {
+      Alert.alert(
+        source === 'camera' ? 'Camera access needed' : 'Photo access needed',
+        `Allow ${source === 'camera' ? 'camera' : 'photo'} access to attach a receipt.`,
+      );
+      return;
+    }
     const opts: ImagePicker.ImagePickerOptions = { mediaTypes: 'images', quality: 0.7, base64: true, allowsEditing: false };
     const res = source === 'camera'
       ? await ImagePicker.launchCameraAsync(opts)
@@ -72,11 +103,14 @@ export default function AddExpense() {
     if (params.currency && (CURRENCIES as readonly string[]).includes(String(params.currency))) {
       setCurrency(String(params.currency));
     }
-  }, [params.amount, params.merchant, params.category, params.currency]);
+    if (params.date) {
+      const d = new Date(String(params.date));
+      if (!isNaN(d.getTime())) setDate(d);
+    }
+  }, [params.amount, params.merchant, params.category, params.currency, params.date]);
 
   const selectedIds = useMemo(() => Object.keys(selected).filter(k => selected[k]), [selected]);
 
-  // Keep shares object aligned with participants when custom mode
   useEffect(() => {
     if (splitMode !== CUSTOM) return;
     setShares(prev => {
@@ -106,8 +140,18 @@ export default function AddExpense() {
   };
 
   const amt = parseFloat(amount) || 0;
+  const userCurrency = user?.currency || 'USD';
 
-  // Per-participant preview
+  // Live conversion preview into the user's default currency
+  const converted = useMemo(() => {
+    if (!amt || amt <= 0) return null;
+    if (currency === userCurrency) return null;
+    if (!rates) return null;
+    const v = convert(amt, currency, userCurrency);
+    if (!v || v === amt) return null;
+    return v;
+  }, [amt, currency, userCurrency, rates, convert]);
+
   const preview = useMemo(() => {
     if (!selectedIds.length) return null;
     if (splitMode === EQUAL) {
@@ -130,19 +174,44 @@ export default function AddExpense() {
     return rows;
   }, [splitMode, selectedIds, shares, amt, friends]);
 
+  // Validation
+  const amountError = (!amt || amt <= 0);
+  const merchantError = !merchant.trim();
+  const canSave = !amountError && !merchantError && !saving;
+
+  const isDirty = amount.length > 0 || merchant.trim().length > 0 || notes.trim().length > 0 || !!receiptUri || selectedIds.length > 0;
+
+  const handleClose = () => {
+    if (isDirty && !saving && !showSuccess) {
+      Alert.alert('Discard expense?', 'Your changes will be lost.', [
+        { text: 'Keep editing', style: 'cancel' },
+        { text: 'Discard', style: 'destructive', onPress: () => router.back() },
+      ]);
+    } else {
+      router.back();
+    }
+  };
+
+  const runSuccess = () => {
+    setShowSuccess(true);
+    Animated.spring(successAnim, { toValue: 1, useNativeDriver: true, friction: 6, tension: 80 }).start();
+    setTimeout(() => router.back(), 950);
+  };
+
   const save = async () => {
-    if (!amt || amt <= 0) {
-      Alert.alert('Amount required', 'Please enter an amount greater than 0.');
+    setTouched({ amount: true, merchant: true });
+    if (!canSave) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
       return;
     }
     setSaving(true);
     try {
       const body: any = {
         amount: amt, currency, category,
-        merchant: merchant || null,
-        notes: notes || null,
+        merchant: merchant.trim() || null,
+        notes: notes.trim() || null,
         group_id: groupId,
-        date: new Date().toISOString(),
+        date: date.toISOString(),
       };
       if (selectedIds.length && splitMode === CUSTOM) {
         const arr = [
@@ -154,7 +223,6 @@ export default function AddExpense() {
         body.split_with = selectedIds;
       }
       if (receiptBase64) {
-        // Guard against oversized receipts (backend caps at ~5.5M chars ≈ 4MB image).
         if (receiptBase64.length > 5_400_000) {
           Alert.alert('Receipt too large', 'The attached photo is very large. Please retake it or remove it to save the expense.');
           setSaving(false);
@@ -164,7 +232,7 @@ export default function AddExpense() {
       }
       await api.createExpense(body);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      router.back();
+      runSuccess();
     } catch (e: any) {
       console.warn('createExpense failed', e);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
@@ -174,7 +242,6 @@ export default function AddExpense() {
           { text: 'OK', onPress: () => router.replace('/login') },
         ]);
       } else {
-        // Try to surface backend detail if present
         let detail = 'Something went wrong. Please try again.';
         try {
           const parsed = JSON.parse(msg);
@@ -185,8 +252,16 @@ export default function AddExpense() {
         }
         Alert.alert("Couldn't save expense", detail);
       }
-    } finally {
       setSaving(false);
+    }
+  };
+
+  const onChangeDate = (event: any, selected?: Date) => {
+    if (Platform.OS === 'android') {
+      setShowDate(false);
+      if (event?.type === 'set' && selected) setDate(selected);
+    } else if (selected) {
+      setDate(selected);
     }
   };
 
@@ -195,11 +270,11 @@ export default function AddExpense() {
   return (
     <KeyboardAvoidingView
       style={{ flex: 1, backgroundColor: colors.surface }}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <View style={[styles.header, { paddingTop: insets.top + SPACING.sm }]}>
-        <Pressable onPress={() => router.back()} hitSlop={12} testID="close-modal">
-          <Feather name="x" size={24} color={colors.onSurface} />
+        <Pressable onPress={handleClose} hitSlop={12} style={styles.headerBtn} testID="close-modal">
+          <Feather name="x" size={22} color={colors.onSurface} />
         </Pressable>
         <Text style={styles.title}>New expense</Text>
         <Pressable
@@ -207,14 +282,14 @@ export default function AddExpense() {
           style={styles.scanBtn}
           testID="open-scan"
         >
-          <Feather name="camera" size={16} color={colors.brand} />
+          <Feather name="camera" size={15} color={colors.brand} />
           <Text style={styles.scanText}>Scan</Text>
         </Pressable>
       </View>
 
-      <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: SPACING.xxxl }} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={{ padding: SPACING.lg, paddingBottom: SPACING.xxxl }} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
         {/* Amount + currency */}
-        <View style={styles.amountWrap}>
+        <View style={[styles.amountWrap, touched.amount && amountError && styles.amountWrapError]}>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 4, paddingHorizontal: SPACING.sm }}>
             <View style={styles.currencyToggle}>
               {CURRENCIES.map(c => (
@@ -228,7 +303,8 @@ export default function AddExpense() {
             <Text style={styles.amountSym}>{sym}</Text>
             <TextInput
               value={amount}
-              onChangeText={setAmount}
+              onChangeText={(v) => setAmount(v.replace(/[^0-9.]/g, ''))}
+              onBlur={() => setTouched(t => ({ ...t, amount: true }))}
               placeholder="0.00"
               placeholderTextColor={colors.onSurfaceTertiary}
               keyboardType="decimal-pad"
@@ -236,18 +312,72 @@ export default function AddExpense() {
               testID="amount-input"
             />
           </View>
+          {converted != null ? (
+            <View style={styles.convPreview} testID="conversion-preview">
+              <Feather name="repeat" size={12} color={colors.onSurfaceSecondary} />
+              <Text style={styles.convText}>
+                ≈ {currencySymbol(userCurrency)}{formatMoney(converted)} in {userCurrency} · your default
+              </Text>
+            </View>
+          ) : null}
+          {touched.amount && amountError ? (
+            <Text style={styles.errorText} testID="amount-error">Enter an amount greater than 0</Text>
+          ) : null}
         </View>
 
         {/* Merchant */}
-        <Text style={styles.label}>Merchant / Description</Text>
+        <View style={styles.labelRow}>
+          <Text style={[styles.label, styles.labelInline]}>Merchant / Description</Text>
+          <Text style={[styles.reqStar, styles.labelInline]}>*</Text>
+        </View>
         <TextInput
           value={merchant}
           onChangeText={setMerchant}
+          onBlur={() => setTouched(t => ({ ...t, merchant: true }))}
           placeholder="e.g. Starbucks"
           placeholderTextColor={colors.onSurfaceTertiary}
-          style={styles.input}
+          style={[styles.input, touched.merchant && merchantError && styles.inputError]}
+          returnKeyType="next"
+          onSubmitEditing={() => notesRef.current?.focus()}
           testID="merchant-input"
         />
+        {touched.merchant && merchantError ? (
+          <Text style={styles.errorText} testID="merchant-error">Add a merchant or description</Text>
+        ) : null}
+
+        {/* Date */}
+        <Text style={styles.label}>Date</Text>
+        <Pressable onPress={() => setShowDate(s => !s)} style={styles.dateRow} testID="date-field">
+          <Feather name="calendar" size={16} color={colors.brand} />
+          <Text style={styles.dateText}>{formatDate(date)}</Text>
+          <Feather name={showDate ? 'chevron-up' : 'chevron-down'} size={16} color={colors.onSurfaceTertiary} />
+        </Pressable>
+        {showDate ? (
+          Platform.OS === 'ios' ? (
+            <View style={styles.iosPickerCard}>
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display="inline"
+                maximumDate={new Date()}
+                onChange={onChangeDate}
+                themeVariant={colors.surface === '#FFFFFF' ? 'light' : 'dark'}
+                accentColor={colors.brand}
+              />
+              <Pressable onPress={() => setShowDate(false)} style={styles.iosDoneBtn}>
+                <Text style={styles.iosDoneText}>Done</Text>
+              </Pressable>
+            </View>
+          ) : (
+            <DateTimePicker
+              value={date}
+              mode="date"
+              display="default"
+              maximumDate={new Date()}
+              onChange={onChangeDate}
+            />
+          )
+        ) : null}
 
         {/* Category */}
         <Text style={styles.label}>Category</Text>
@@ -257,7 +387,7 @@ export default function AddExpense() {
             return (
               <Pressable
                 key={c.key}
-                onPress={() => setCategory(c.key)}
+                onPress={() => { Haptics.selectionAsync().catch(() => {}); setCategory(c.key); }}
                 style={[styles.catChip, active && { borderColor: c.color, backgroundColor: c.color + '18' }]}
                 testID={`cat-${c.key}`}
               >
@@ -292,7 +422,7 @@ export default function AddExpense() {
         ) : null}
 
         {/* Split with friends */}
-        <Text style={styles.label}>Split with</Text>
+        <Text style={styles.label}>Split with (optional)</Text>
         {friends.length === 0 ? (
           <Text style={styles.hint}>No friends yet. Add friends from the Friends tab.</Text>
         ) : (
@@ -376,11 +506,12 @@ export default function AddExpense() {
         {/* Notes */}
         <Text style={styles.label}>Notes (optional)</Text>
         <TextInput
+          ref={notesRef}
           value={notes}
           onChangeText={setNotes}
           placeholder="Add note..."
           placeholderTextColor={colors.onSurfaceTertiary}
-          style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
+          style={[styles.input, { height: 80, paddingTop: SPACING.md, textAlignVertical: 'top' }]}
           multiline
           testID="notes-input"
         />
@@ -411,34 +542,73 @@ export default function AddExpense() {
       <View style={[styles.saveBar, { paddingBottom: insets.bottom + SPACING.md }]}>
         <Pressable
           onPress={save}
-          disabled={saving || !amt || amt <= 0}
-          style={[styles.saveBtn, (!amt || amt <= 0 || saving) && { opacity: 0.5 }]}
+          disabled={saving}
+          style={[styles.saveBtn, !canSave && { opacity: 0.55 }]}
           testID="save-expense-button"
         >
-          {saving ? <ActivityIndicator color="#FFF" /> : <Text style={styles.saveText}>Save expense</Text>}
+          {saving ? (
+            <ActivityIndicator color={colors.onBrand} />
+          ) : (
+            <>
+              <Feather name="check" size={18} color={colors.onBrand} />
+              <Text style={styles.saveText}>Save expense</Text>
+            </>
+          )}
         </Pressable>
       </View>
+
+      {showSuccess ? (
+        <View style={styles.successOverlay} testID="save-success">
+          <Animated.View
+            style={[
+              styles.successCircle,
+              { opacity: successAnim, transform: [{ scale: successAnim.interpolate({ inputRange: [0, 1], outputRange: [0.5, 1] }) }] },
+            ]}
+          >
+            <Feather name="check" size={40} color={colors.onBrand} />
+          </Animated.View>
+          <Animated.Text style={[styles.successText, { opacity: successAnim }]}>Expense saved</Animated.Text>
+        </View>
+      ) : null}
     </KeyboardAvoidingView>
   );
 }
 
 const makeStyles = (colors: any) => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: SPACING.lg, paddingBottom: SPACING.md, borderBottomWidth: 1, borderBottomColor: colors.border },
+  headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginLeft: -SPACING.sm },
   title: { fontSize: FONT.size.lg, fontWeight: '700', color: colors.onSurface },
-  scanBtn: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: colors.brandTertiary, paddingHorizontal: SPACING.md, height: 32, borderRadius: RADIUS.pill },
-  scanText: { color: colors.brand, fontWeight: '700' },
-  amountWrap: { alignItems: 'center', paddingVertical: SPACING.lg, gap: SPACING.md },
-  currencyToggle: { flexDirection: 'row', gap: 4, backgroundColor: colors.surfaceSecondary, borderRadius: RADIUS.pill, padding: 4 },
+  scanBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.brandTertiary, paddingHorizontal: SPACING.md, height: 34, borderRadius: RADIUS.pill },
+  scanText: { color: colors.brand, fontWeight: '700', fontSize: FONT.size.base },
+
+  amountWrap: { alignItems: 'center', paddingVertical: SPACING.xl, gap: SPACING.md, backgroundColor: colors.surfaceSecondary, borderRadius: RADIUS.lg, borderWidth: 1, borderColor: colors.border, marginBottom: SPACING.xs },
+  amountWrapError: { borderColor: colors.error },
+  currencyToggle: { flexDirection: 'row', gap: 4, backgroundColor: colors.surface, borderRadius: RADIUS.pill, padding: 4, borderWidth: 1, borderColor: colors.border },
   curBtn: { paddingHorizontal: SPACING.md, height: 32, borderRadius: RADIUS.pill, alignItems: 'center', justifyContent: 'center' },
   curBtnActive: { backgroundColor: colors.brand },
   curText: { fontWeight: '700', color: colors.onSurfaceSecondary },
   amountRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm },
-  amountSym: { fontSize: FONT.size.hero, color: colors.onSurfaceTertiary, fontWeight: '700' },
-  amountInput: { fontSize: 56, fontWeight: '800', color: colors.onSurface, minWidth: 140, textAlign: 'left' },
+  amountSym: { fontSize: FONT.size.xxl, color: colors.onSurfaceTertiary, fontWeight: '700' },
+  amountInput: { fontSize: 52, fontWeight: '800', color: colors.onSurface, minWidth: 120, maxWidth: 240, textAlign: 'left', padding: 0 },
+  convPreview: { flexDirection: 'row', alignItems: 'center', gap: 6, backgroundColor: colors.surface, paddingHorizontal: SPACING.md, paddingVertical: 6, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: colors.border },
+  convText: { fontSize: FONT.size.sm, color: colors.onSurfaceSecondary, fontWeight: '600' },
+
+  labelRow: { flexDirection: 'row', alignItems: 'center', marginTop: SPACING.lg, marginBottom: SPACING.sm, gap: 4 },
   label: { fontSize: FONT.size.sm, fontWeight: '700', color: colors.onSurfaceTertiary, textTransform: 'uppercase', marginTop: SPACING.lg, marginBottom: SPACING.sm, letterSpacing: 0.5 },
-  input: { backgroundColor: colors.surfaceSecondary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 52, fontSize: FONT.size.lg, color: colors.onSurface },
+  reqStar: { fontSize: FONT.size.sm, fontWeight: '800', color: colors.error, marginTop: SPACING.lg, marginBottom: SPACING.sm },
+  labelInline: { marginTop: 0, marginBottom: 0 },
+  input: { backgroundColor: colors.surfaceSecondary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 52, fontSize: FONT.size.lg, color: colors.onSurface, borderWidth: 1, borderColor: colors.border },
+  inputError: { borderColor: colors.error },
+  errorText: { fontSize: FONT.size.sm, color: colors.error, fontWeight: '600', marginTop: SPACING.xs, marginLeft: 2 },
   hint: { fontSize: FONT.size.base, color: colors.onSurfaceTertiary },
-  catChip: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, height: 36, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+
+  dateRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, backgroundColor: colors.surfaceSecondary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 52, borderWidth: 1, borderColor: colors.border },
+  dateText: { flex: 1, fontSize: FONT.size.lg, color: colors.onSurface, fontWeight: '600' },
+  iosPickerCard: { marginTop: SPACING.sm, backgroundColor: colors.surfaceSecondary, borderRadius: RADIUS.md, borderWidth: 1, borderColor: colors.border, paddingHorizontal: SPACING.sm, paddingBottom: SPACING.sm },
+  iosDoneBtn: { alignSelf: 'flex-end', paddingHorizontal: SPACING.lg, height: 40, borderRadius: RADIUS.pill, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center', marginTop: SPACING.xs, marginRight: SPACING.sm, marginBottom: SPACING.sm },
+  iosDoneText: { color: colors.onBrand, fontWeight: '700', fontSize: FONT.size.base },
+
+  catChip: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, height: 38, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   catText: { fontSize: FONT.size.base, color: colors.onSurfaceSecondary, fontWeight: '600' },
   friendChip: { flexShrink: 0, flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.sm, height: 40, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface, paddingRight: SPACING.md },
   friendChipActive: { borderColor: colors.brand, backgroundColor: colors.brandTertiary },
@@ -447,11 +617,11 @@ const makeStyles = (colors: any) => StyleSheet.create({
   friendText: { fontWeight: '600', color: colors.onSurfaceSecondary },
 
   splitModeRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.xs },
-  modeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, height: 36, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
+  modeChip: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: SPACING.md, height: 38, borderRadius: RADIUS.pill, borderWidth: 1, borderColor: colors.border, backgroundColor: colors.surface },
   modeChipActive: { backgroundColor: colors.brand, borderColor: colors.brand },
   modeText: { fontWeight: '700', color: colors.onSurfaceSecondary },
 
-  sharesCard: { marginTop: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: colors.surfaceSecondary, gap: SPACING.sm },
+  sharesCard: { marginTop: SPACING.md, padding: SPACING.md, borderRadius: RADIUS.md, backgroundColor: colors.surfaceSecondary, gap: SPACING.sm, borderWidth: 1, borderColor: colors.border },
   sharesHint: { fontSize: FONT.size.sm, color: colors.onSurfaceTertiary },
   shareRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.md },
   shareLabel: { flex: 1, fontSize: FONT.size.base, color: colors.onSurface, fontWeight: '600' },
@@ -459,12 +629,16 @@ const makeStyles = (colors: any) => StyleSheet.create({
   sharePreview: { minWidth: 78, textAlign: 'right', fontSize: FONT.size.base, fontWeight: '700', color: colors.brand },
 
   photoRow: { flexDirection: 'row', gap: SPACING.sm },
-  photoBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 48, borderRadius: RADIUS.md, backgroundColor: colors.surfaceSecondary },
+  photoBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, height: 48, borderRadius: RADIUS.md, backgroundColor: colors.surfaceSecondary, borderWidth: 1, borderColor: colors.border },
   photoText: { fontWeight: '700', color: colors.onSurface },
   receiptPreview: { height: 180, borderRadius: RADIUS.md, overflow: 'hidden', backgroundColor: colors.surfaceSecondary },
   receiptClear: { position: 'absolute', top: 8, right: 8, width: 32, height: 32, borderRadius: 16, backgroundColor: 'rgba(0,0,0,0.6)', alignItems: 'center', justifyContent: 'center' },
 
   saveBar: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },
-  saveBtn: { backgroundColor: colors.brand, height: 54, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
-  saveText: { color: '#FFF', fontSize: FONT.size.lg, fontWeight: '700' },
+  saveBtn: { flexDirection: 'row', gap: SPACING.sm, backgroundColor: colors.brand, height: 54, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
+  saveText: { color: colors.onBrand, fontSize: FONT.size.lg, fontWeight: '700' },
+
+  successOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', gap: SPACING.lg },
+  successCircle: { width: 96, height: 96, borderRadius: 48, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
+  successText: { fontSize: FONT.size.xl, fontWeight: '800', color: colors.onSurface },
 });

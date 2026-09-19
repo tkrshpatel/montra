@@ -101,3 +101,58 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Improve the Add Expense form in the Montra Expo app: premium redesign with clear validation
+  (amount, category, date, currency, merchant), inline error states + required-field indicators,
+  smart defaults, better keyboard UX, category chips + icon selection, currency display + live
+  conversion preview, receipt attachment preview, cancel confirmation, and success feedback after
+  saving. Must keep compatibility with existing backend expense APIs. No backend changes.
+
+frontend:
+  - task: "Add Expense premium redesign + validation"
+    implemented: true
+    working: "NA"
+    file: "frontend/app/add-expense.tsx"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+        -working: "NA"
+        -agent: "main"
+        -comment: |
+          Rebuilt add-expense.tsx. Added: required-field indicators (amount required with error
+          state + red border on amount card; merchant required with inline error + red border),
+          native date picker (@react-native-community/datetimepicker) defaulting to today, max=today,
+          Today/Yesterday labels; live FX conversion preview into user's default currency when the
+          expense currency differs; success overlay (animated checkmark) then auto-close on save;
+          cancel/close confirmation (discard prompt) when form is dirty; keyboard UX (merchant
+          returnKey next -> focuses notes, numeric sanitize on amount). Preserved all existing split
+          with friends / groups / custom-ratio share logic and receipt attach/scan handoff. Backend
+          POST /api/expenses body contract unchanged (adds date ISO string which backend already
+          accepts).
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 0
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Add Expense premium redesign + validation"
+  stuck_tasks: []
+  test_all: false
+  test_priority: "high_first"
+
+agent_communication:
+    -agent: "main"
+    -message: |
+      Please test the redesigned Add Expense screen (frontend/app/add-expense.tsx). Use the MongoDB
+      test-session injection approach from /app/memory/test_credentials.md (session_token
+      test_token_abc, user user_test123) to authenticate. Verify: (1) Save disabled/blocked with
+      inline errors when amount is 0/empty or merchant is empty; (2) valid save creates an expense
+      via POST /api/expenses and shows success overlay then returns; (3) date field opens picker and
+      updates label; (4) currency conversion preview appears when currency != user default (needs FX
+      rates); (5) category/friends/group split still works; (6) close with dirty form shows discard
+      confirm. Focus on frontend only. Backend unchanged.
