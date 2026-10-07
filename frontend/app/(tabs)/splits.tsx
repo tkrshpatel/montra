@@ -31,7 +31,7 @@ export default function Splits() {
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
   const sym = currencySymbol(user?.currency || 'USD');
-  const total = data?.total_owed_to_me || 0;
+  const total = data?.net_balance ?? 0;
   const items: any[] = data?.friends || [];
 
   return (
@@ -54,7 +54,7 @@ export default function Splits() {
           {total > 0 ? '+' : ''}{sym}{total.toFixed(2)}
         </Text>
         <Text style={styles.netSub}>
-          {total > 0 ? `You are owed ${sym}${total.toFixed(2)}` : 'All settled up'}
+          {total > 0 ? `You are owed ${sym}${total.toFixed(2)}` : total < 0 ? `You owe ${sym}${Math.abs(total).toFixed(2)}` : 'Net zero · check individual balances'}
         </Text>
       </View>
 
@@ -90,14 +90,14 @@ export default function Splits() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowName}>{item.name}</Text>
                   <Text style={styles.rowSub}>
-                    {positive ? 'owes you' : (negative ? 'overpaid' : 'settled')} · view history
+                    {positive ? 'owes you' : (negative ? 'you owe' : 'settled')} · view history
                   </Text>
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: 6 }}>
                   <Text style={[styles.rowAmount, positive ? { color: colors.brand } : { color: colors.onSurfaceTertiary }]}>
                     {positive ? '+' : ''}{sym}{item.amount.toFixed(2)}
                   </Text>
-                  {positive ? (
+                  {positive || negative ? (
                     <Pressable
                       onPress={(e) => { e.stopPropagation?.(); router.push({ pathname: '/settle', params: { friend_id: item.friend_id, name: item.name, amount: String(item.amount) } }); }}
                       style={styles.settleBtn}

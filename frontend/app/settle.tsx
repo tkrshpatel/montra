@@ -17,7 +17,9 @@ export default function Settle() {
   const { user } = useAuth();
   const params = useLocalSearchParams<{ friend_id: string; name: string; amount?: string }>();
 
-  const preset = params.amount ? String(params.amount) : '';
+  const net = Number(params.amount || 0);
+  const [direction, setDirection] = useState<'received' | 'paid'>(net < 0 ? 'paid' : 'received');
+  const preset = params.amount ? String(Math.abs(net)) : '';
   const [amount, setAmount] = useState(preset);
   const [note, setNote] = useState('');
   const [saving, setSaving] = useState(false);
@@ -27,15 +29,15 @@ export default function Settle() {
   const sym = currencySymbol(currency);
 
   const save = async () => {
-    const amt = parseFloat(amount);
-    if (!amt || amt <= 0) { setErr('Enter a positive amount'); return; }
+    const amt = Number(amount);
+    if (!Number.isFinite(amt) || amt <= 0) { setErr('Enter a positive amount'); return; }
     setSaving(true);
     setErr(null);
     try {
       await api.createSettlement({
         friend_id: params.friend_id,
         amount: amt,
-        currency,
+        currency, direction,
         note: note || null,
       });
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
@@ -62,10 +64,17 @@ export default function Settle() {
           <View style={styles.avatar}><Text style={styles.avatarText}>{(params.name || '?').slice(0,1).toUpperCase()}</Text></View>
           <View style={{ flex: 1 }}>
             <Text style={styles.friendName}>{params.name}</Text>
-            <Text style={styles.friendSub}>owes you {sym}{parseFloat(preset || '0').toFixed(2)}</Text>
+            <Text style={styles.friendSub}>{net < 0 ? 'You owe' : 'Owes you'} {sym}{Math.abs(net).toFixed(2)}</Text>
           </View>
         </View>
 
+        <View style={{ flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.lg }}>
+          {(['received', 'paid'] as const).map(d => <Pressable key={d} onPress={() => setDirection(d)}
+            accessibilityRole="button" accessibilityState={{ selected: direction === d }}
+            style={[styles.input, { flex: 1, justifyContent: 'center', borderWidth: 1, borderColor: direction === d ? colors.brand : colors.border }]}>
+            <Text style={{ color: colors.onSurface }}>{d === 'received' ? 'I received' : 'I paid'}</Text>
+          </Pressable>)}
+        </View>
         <Text style={styles.label}>Repayment amount ({currency})</Text>
         <View style={styles.amountRow}>
           <Text style={styles.amountSym}>{sym}</Text>
@@ -119,7 +128,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   label: { fontSize: FONT.size.sm, fontWeight: '700', color: colors.onSurfaceTertiary, textTransform: 'uppercase', marginTop: SPACING.lg, marginBottom: SPACING.sm, letterSpacing: 0.5 },
   amountRow: { flexDirection: 'row', alignItems: 'center', gap: SPACING.sm, borderBottomWidth: 2, borderBottomColor: colors.border, paddingBottom: SPACING.sm },
   amountSym: { fontSize: FONT.size.xxl, color: colors.onSurfaceTertiary, fontWeight: '700' },
-  amountInput: { flex: 1, fontSize: 40, fontWeight: '800', color: colors.onSurface },
+  amountInput: { flex: 1, minWidth: 0, width: 0, fontSize: 40, fontWeight: '800', color: colors.onSurface },
   input: { backgroundColor: colors.surfaceSecondary, borderRadius: RADIUS.md, paddingHorizontal: SPACING.md, height: 52, fontSize: FONT.size.lg, color: colors.onSurface },
   err: { color: colors.error, marginTop: SPACING.md },
   bar: { paddingHorizontal: SPACING.lg, paddingTop: SPACING.md, backgroundColor: colors.surface, borderTopWidth: 1, borderTopColor: colors.border },

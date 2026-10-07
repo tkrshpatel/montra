@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "frontend",
-    "slug": "frontend",
+    "name": "Montra",
+    "slug": "montra",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "frontend",
+    "scheme": "montra",
     "userInterfaceStyle": "automatic",
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.emergent.invoicescan.d4y5at",
+      "bundleIdentifier": "com.montra.app",
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSCameraUsageDescription": "Scan receipts to log expenses",
@@ -20,10 +20,16 @@
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#000000"
+        "backgroundColor": "#173F35"
       },
-      "package": "com.emergent.invoicescan.d4y5at",
-      "permissions": ["CAMERA", "READ_EXTERNAL_STORAGE", "READ_MEDIA_IMAGES", "USE_BIOMETRIC", "USE_FINGERPRINT"]
+      "package": "com.montra.app",
+      "permissions": [
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "READ_MEDIA_IMAGES",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT"
+      ]
     },
     "web": {
       "bundler": "metro",
@@ -38,7 +44,7 @@
           "image": "./assets/images/splash-image.png",
           "imageWidth": 200,
           "resizeMode": "contain",
-          "backgroundColor": "#000000"
+          "backgroundColor": "#173F35"
         }
       ],
       "expo-font",

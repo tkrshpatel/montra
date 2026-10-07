@@ -7,6 +7,9 @@ export default function Root({ children }: PropsWithChildren) {
     <html lang="en" style={{ height: "100%" }}>
       <head>
         <meta charSet="utf-8" />
+        <title>Montra — Money, together.</title>
+        <meta name="description" content="Track personal spending, split expenses and keep clear balances with Montra." />
+        <meta name="theme-color" content="#173F35" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
         <meta
           name="viewport"

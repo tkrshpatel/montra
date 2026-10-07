@@ -39,23 +39,21 @@ async function req(path: string, init: RequestInit = {}, timeoutMs = DEFAULT_TIM
   }
   if (!res.ok) {
     const text = await res.text().catch(() => '');
-    // Try to surface FastAPI { detail: "..." } payloads
-    try {
-      const parsed = JSON.parse(text);
-      if (parsed?.detail) throw new Error(typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail));
-    } catch (e: any) {
-      if (e && typeof e.message === 'string' && e.message && !e.message.startsWith('{')) throw e;
-    }
-    throw new Error(text || `HTTP ${res.status}`);
+    let detail: unknown;
+    try { detail = JSON.parse(text)?.detail; } catch { /* Non-JSON gateway error. */ }
+    throw new Error(typeof detail === 'string' ? detail : detail ? 'Please check the entered details.' : `Request failed (${res.status}). Please try again.`);
   }
+
   const ct = res.headers.get('content-type') || '';
   if (ct.includes('application/json')) return res.json();
   return res.text();
 }
 
 export const api = {
-  authSession: (session_id: string) =>
-    req('/auth/session', { method: 'POST', body: JSON.stringify({ session_id }) }),
+  authStart: (redirect_uri: string, code_challenge: string) =>
+    req('/auth/google/start', { method: 'POST', body: JSON.stringify({ redirect_uri, code_challenge }) }),
+  authExchange: (code: string, code_verifier: string) =>
+    req('/auth/google/exchange', { method: 'POST', body: JSON.stringify({ code, code_verifier }) }),
   authApple: (data: { identity_token: string; name?: string | null; email?: string | null }) =>
     req('/auth/apple', { method: 'POST', body: JSON.stringify(data) }),
   deleteAccount: () => req('/auth/account', { method: 'DELETE' }),

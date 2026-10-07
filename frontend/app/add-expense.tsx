@@ -39,6 +39,7 @@ export default function AddExpense() {
   const { convert, rates } = useFx();
   const params = useLocalSearchParams<{ amount?: string; merchant?: string; category?: string; date?: string; currency?: string }>();
 
+  const [paidBy, setPaidBy] = useState('self');
   const [amount, setAmount] = useState('');
   const [merchant, setMerchant] = useState('');
   const [notes, setNotes] = useState('');
@@ -54,6 +55,7 @@ export default function AddExpense() {
   const [shares, setShares] = useState<Record<string, string>>({ self: '1' });
   const [receiptBase64, setReceiptBase64] = useState<string | null>(null);
   const [receiptUri, setReceiptUri] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [touched, setTouched] = useState<{ amount?: boolean; merchant?: boolean }>({});
 
@@ -120,6 +122,8 @@ export default function AddExpense() {
     });
   }, [selectedIds, splitMode]);
 
+  useEffect(() => { if (paidBy !== 'self' && !selectedIds.includes(paidBy)) setPaidBy('self'); }, [paidBy, selectedIds]);
+
   const toggle = (fid: string) => {
     Haptics.selectionAsync().catch(() => {});
     setSelected(s => ({ ...s, [fid]: !s[fid] }));
@@ -139,7 +143,7 @@ export default function AddExpense() {
     setSelected(next);
   };
 
-  const amt = parseFloat(amount) || 0;
+  const amt = Number(amount) || 0;
   const userCurrency = user?.currency || 'USD';
 
   // Live conversion preview into the user's default currency
@@ -175,7 +179,7 @@ export default function AddExpense() {
   }, [splitMode, selectedIds, shares, amt, friends]);
 
   // Validation
-  const amountError = (!amt || amt <= 0);
+  const amountError = (!Number.isFinite(amt) || amt <= 0);
   const merchantError = !merchant.trim();
   const canSave = !amountError && !merchantError && !saving;
 
@@ -204,10 +208,11 @@ export default function AddExpense() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
       return;
     }
+    setSaveError(null);
     setSaving(true);
     try {
       const body: any = {
-        amount: amt, currency, category,
+        amount: amt, currency, category, paid_by: paidBy,
         merchant: merchant.trim() || null,
         notes: notes.trim() || null,
         group_id: groupId,
@@ -237,6 +242,7 @@ export default function AddExpense() {
       console.warn('createExpense failed', e);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
       const msg = String(e?.message || e || '').trim();
+      setSaveError(msg === 'unauthorized' ? 'Your session expired. Sign in again.' : msg || 'Could not save. Please try again.');
       if (msg === 'unauthorized') {
         Alert.alert('Session expired', 'Please sign in again to save this expense.', [
           { text: 'OK', onPress: () => router.replace('/login') },
@@ -446,6 +452,19 @@ export default function AddExpense() {
           </ScrollView>
         )}
 
+        {selectedIds.length > 0 ? <>
+          <Text style={styles.label}>Who paid?</Text>
+          <ScrollView horizontal contentContainerStyle={{ gap: SPACING.sm }}>
+            {['self', ...selectedIds].map(id => <Pressable key={id} onPress={() => setPaidBy(id)}
+              accessibilityRole="button" accessibilityState={{ selected: paidBy === id }}
+              style={[styles.modeChip, paidBy === id && styles.modeChipActive]} testID={`payer-${id}`}>
+              <Text style={[styles.modeText, paidBy === id && { color: colors.onBrand }]}>
+                {id === 'self' ? 'You' : friends.find(f => f.friend_id === id)?.name}
+              </Text>
+            </Pressable>)}
+          </ScrollView>
+        </> : null}
+
         {/* Split mode + shares editor */}
         {selectedIds.length > 0 ? (
           <View>
@@ -539,6 +558,7 @@ export default function AddExpense() {
         )}
       </ScrollView>
 
+      {saveError ? <Text accessibilityRole="alert" style={[styles.errorText, { padding: SPACING.md }]}>{saveError}</Text> : null}
       <View style={[styles.saveBar, { paddingBottom: insets.bottom + SPACING.md }]}>
         <Pressable
           onPress={save}
@@ -638,7 +658,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   saveBtn: { flexDirection: 'row', gap: SPACING.sm, backgroundColor: colors.brand, height: 54, borderRadius: RADIUS.md, alignItems: 'center', justifyContent: 'center' },
   saveText: { color: colors.onBrand, fontSize: FONT.size.lg, fontWeight: '700' },
 
-  successOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', gap: SPACING.lg },
+  successOverlay: { ...StyleSheet.absoluteFill, backgroundColor: colors.surface, alignItems: 'center', justifyContent: 'center', gap: SPACING.lg },
   successCircle: { width: 96, height: 96, borderRadius: 48, backgroundColor: colors.brand, alignItems: 'center', justifyContent: 'center' },
   successText: { fontSize: FONT.size.xl, fontWeight: '800', color: colors.onSurface },
 });

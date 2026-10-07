@@ -21,6 +21,7 @@ export default function Profile() {
   const lock = useLock();
   const [busy, setBusy] = useState(false);
   const [lockBusy, setLockBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
 
   const confirmDelete = () => {
@@ -34,7 +35,7 @@ export default function Profile() {
           style: 'destructive',
           onPress: async () => {
             setDeleting(true);
-            try { await deleteAccount(); } finally { setDeleting(false); }
+            try { setDeleteError(null); await deleteAccount(); } catch (e: any) { setDeleteError(e.message || "Could not delete your account. Please try again."); } finally { setDeleting(false); }
           },
         },
       ],
@@ -57,6 +58,7 @@ export default function Profile() {
       contentContainerStyle={{ paddingTop: insets.top + SPACING.lg, paddingBottom: SPACING.xxxl }}
       testID="profile-screen"
     >
+      {deleteError ? <Text accessibilityRole="alert" style={{ color: colors.error, padding: SPACING.lg }}>{deleteError}</Text> : null}
       <Text style={styles.header}>Profile</Text>
 
       <View style={styles.userCard} testID="profile-card">
