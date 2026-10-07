@@ -110,7 +110,7 @@ export default function FriendDetail() {
                       : negative ? `You owe ${displayName} ${sym}${Math.abs(net).toFixed(2)}`
                       : 'All settled up 🎉'}
                   </Text>
-                  {positive ? (
+                  {positive || negative ? (
                     <Pressable
                       onPress={() => router.push({ pathname: '/settle', params: { friend_id: params.id as string, name: displayName, amount: String(net) } })}
                       style={styles.settleBtn}
@@ -139,7 +139,7 @@ export default function FriendDetail() {
                       {fmt(item.created_at)}{item.note ? ` · ${item.note}` : ''}
                     </Text>
                   </View>
-                  <Text style={[styles.rowAmount, { color: colors.warning }]}>-{sym}{Number(item.home_amount).toFixed(2)}</Text>
+                  <Text style={[styles.rowAmount, { color: colors.warning }]}>{item.home_amount < 0 ? '+' : '-'}{sym}{Math.abs(Number(item.home_amount)).toFixed(2)}</Text>
                 </View>
               );
             }
@@ -157,10 +157,10 @@ export default function FriendDetail() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowName} numberOfLines={1}>{item.merchant || item.category || 'Expense'}</Text>
                   <Text style={styles.rowSub} numberOfLines={1}>
-                    {fmt(item.date || item.created_at)} · their share {sym}{Number(item.home_amount).toFixed(2)}
+                    {fmt(item.date || item.created_at)} · {item.home_amount < 0 ? 'you owe' : 'owes you'} {sym}{Math.abs(Number(item.home_amount)).toFixed(2)}
                   </Text>
                 </View>
-                <Text style={[styles.rowAmount, { color: colors.brand }]}>+{sym}{Number(item.home_amount).toFixed(2)}</Text>
+                <Text style={[styles.rowAmount, { color: colors.brand }]}>{item.home_amount < 0 ? '-' : '+'}{sym}{Math.abs(Number(item.home_amount)).toFixed(2)}</Text>
               </Pressable>
             );
           }}

@@ -9,6 +9,7 @@ import { SPACING, RADIUS, FONT, currencySymbol } from '../src/theme';
 import { useTheme } from '../src/theme/ThemeContext';
 
 type Settlement = {
+  direction?: 'received' | 'paid';
   settlement_id: string;
   friend_id: string;
   amount: number;
@@ -77,7 +78,7 @@ export default function Settlements() {
             <View style={styles.empty} testID="settlements-empty">
               <View style={styles.emptyIcon}><Feather name="clock" size={24} color={colors.brand} /></View>
               <Text style={styles.emptyTitle}>No settlements yet</Text>
-              <Text style={styles.emptyText}>When a friend pays you back, it appears here.</Text>
+              <Text style={styles.emptyText}>Payments you send and receive appear here.</Text>
             </View>
           }
           renderItem={({ item }) => {
@@ -94,7 +95,7 @@ export default function Settlements() {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.rowName}>{name}</Text>
                   <Text style={styles.rowSub} numberOfLines={1}>
-                    {fmt(item.created_at)}{item.note ? ` · ${item.note}` : ''}
+                    {item.direction === 'paid' ? 'You paid' : 'You received'} · {fmt(item.created_at)}{item.note ? ` · ${item.note}` : ''}
                   </Text>
                 </View>
                 <Text style={styles.rowAmount}>{sym(item.currency)}{Number(item.amount).toFixed(2)}</Text>

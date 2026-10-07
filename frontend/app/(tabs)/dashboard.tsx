@@ -305,7 +305,7 @@ export default function Dashboard() {
         style={[styles.fab, { bottom: SPACING.lg }]}
         testID="fab-add-expense"
       >
-        <Feather name="plus" size={26} color={colors.onBrandPrimary || '#FFF'} />
+        <Feather name="plus" size={26} color={colors.onBrand || '#FFF'} />
       </Pressable>
     </View>
   );

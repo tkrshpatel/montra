@@ -10,19 +10,22 @@ import Feather from '@react-native-vector-icons/feather';
 export default function Login() {
   const { colors } = useTheme();
   const styles = useMemo(() => makeStyles(colors), [colors]);
-  const { signIn, signInApple } = useAuth();
+  const { signIn, signInApple, authError } = useAuth();
   const insets = useSafeAreaInsets();
+  const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [appleBusy, setAppleBusy] = useState(false);
 
   const handle = async () => {
     setBusy(true);
-    try { await signIn(); } finally { setBusy(false); }
+    setError(null);
+    try { await signIn(); } catch (e: any) { setError(e.message || "Could not sign in"); } finally { setBusy(false); }
   };
 
   const handleApple = async () => {
     setAppleBusy(true);
-    try { await signInApple(); } finally { setAppleBusy(false); }
+    setError(null);
+    try { await signInApple(); } catch (e: any) { setError(e.message || "Could not sign in"); } finally { setAppleBusy(false); }
   };
 
   const features = [
@@ -43,7 +46,7 @@ export default function Login() {
     >
       {/* Brand block */}
       <View style={styles.logoWrap} testID="login-logo">
-        <Feather name="pie-chart" size={34} color={colors.brand} />
+        <Image source={require('../assets/images/icon.png')} style={{ width: 64, height: 64, borderRadius: 18 }} accessibilityLabel="Montra" />
       </View>
 
       <Text style={styles.brand}>Montra</Text>
@@ -76,13 +79,6 @@ export default function Login() {
           <ActivityIndicator color={colors.onBrand} />
         ) : (
           <>
-            <View style={styles.gCircle}>
-              <Image
-                source={{ uri: 'https://www.gstatic.com/marketing-cms/assets/images/d5/dc/cfe9ce8b4425b410b49b7f2dd3f3/g.webp=s96-fcrop64=1,00000000ffffffff-rw' }}
-                style={styles.gIcon}
-                contentFit="contain"
-              />
-            </View>
             <Text style={styles.googleText}>Continue with Google</Text>
           </>
         )}
@@ -104,7 +100,8 @@ export default function Login() {
           )}
         </Pressable>
       ) : null}
-      <Text style={styles.small}>Powered by Emergent Auth  •  Sessions last 7 days.</Text>
+      {(error || authError) ? <Text accessibilityRole="alert" style={[styles.small, { color: colors.error }]}>{error || authError}</Text> : null}
+      <Text style={styles.small}>Your spending. Your people. Your Montra.</Text>
     </ScrollView>
   );
 }

@@ -161,7 +161,7 @@ const makeStyles = (colors: any) => StyleSheet.create({
   preview: { height: 320, borderRadius: RADIUS.lg, overflow: 'hidden', backgroundColor: colors.surfaceSecondary },
   placeholder: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: SPACING.sm },
   placeholderText: { color: colors.onSurfaceTertiary, fontSize: FONT.size.base },
-  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', gap: SPACING.md },
+  overlay: { ...StyleSheet.absoluteFill, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center', gap: SPACING.md },
   overlayText: { color: '#FFF', fontWeight: '600' },
   actionsRow: { flexDirection: 'row', gap: SPACING.sm, marginTop: SPACING.lg },
   actionBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: SPACING.sm, height: 48, borderRadius: RADIUS.md, backgroundColor: colors.surfaceSecondary },
