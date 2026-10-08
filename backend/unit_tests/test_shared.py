@@ -1,4 +1,9 @@
 import asyncio
+import os
+import uuid
+import sys
+from pathlib import Path
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from datetime import timedelta
 
 import httpx
@@ -10,7 +15,13 @@ from shared import create_shared_router, delete_shared_identity, now
 
 @pytest.fixture
 async def shared_client():
-    db = AsyncMongoMockClient()['shared_test']
+    uri = os.environ.get('MONTRA_TEST_MONGO_URI')
+    if uri:
+        from motor.motor_asyncio import AsyncIOMotorClient
+        database_client = AsyncIOMotorClient(uri, serverSelectionTimeoutMS=5000)
+    else:
+        database_client = AsyncMongoMockClient()
+    db = database_client['montra_test_' + uuid.uuid4().hex]
     async def identity(x_user: str = Header('alice')):
         return {'user_id': x_user, 'name': x_user.title()}
     app = FastAPI()
@@ -21,7 +32,11 @@ async def shared_client():
         code = (await c.post(path+'/invitation')).json()['code']
         for uid in ['bob', 'carol']:
             assert (await c.post('/shared/join', headers={'x-user': uid}, json={'code': code})).status_code == 200
-        yield c, db, path, code
+        try:
+            yield c, db, path, code
+        finally:
+            await database_client.drop_database(db.name)
+            database_client.close()
 
 
 def expense(**changes):

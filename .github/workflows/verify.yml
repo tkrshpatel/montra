@@ -32,3 +32,26 @@ jobs:
       - run: npm ci
       - run: npm run typecheck
       - run: npx expo export --platform web
+        env:
+          EXPO_PUBLIC_BACKEND_URL: http://localhost:8000
+
+      - run: npx expo export --platform android --output-dir /tmp/montra-android
+      - run: npm install --no-save --ignore-scripts playwright
+      - run: npx playwright install --with-deps chromium
+      - run: node tests/shared-mobile.cjs
+  shared-mongodb:
+    runs-on: ubuntu-latest
+    services:
+      mongodb:
+        image: mongo:8.0
+        ports:
+          - 27017:27017
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r backend/requirements-dev.txt
+      - run: python -m pytest -c backend/unit_tests/pytest.ini backend/unit_tests/test_shared.py -q
+        env:
+          MONTRA_TEST_MONGO_URI: mongodb://localhost:27017
