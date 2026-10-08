@@ -10,7 +10,7 @@ const BASE =
 // Per-request timeout so requests never hang forever on a flaky network.
 const DEFAULT_TIMEOUT_MS = 30_000;
 
-async function req(path: string, init: RequestInit = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
+export async function request(path: string, init: RequestInit = {}, timeoutMs = DEFAULT_TIMEOUT_MS) {
   const token = await getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -51,49 +51,49 @@ async function req(path: string, init: RequestInit = {}, timeoutMs = DEFAULT_TIM
 
 export const api = {
   authStart: (redirect_uri: string, code_challenge: string) =>
-    req('/auth/google/start', { method: 'POST', body: JSON.stringify({ redirect_uri, code_challenge }) }),
+    request('/auth/google/start', { method: 'POST', body: JSON.stringify({ redirect_uri, code_challenge }) }),
   authExchange: (code: string, code_verifier: string) =>
-    req('/auth/google/exchange', { method: 'POST', body: JSON.stringify({ code, code_verifier }) }),
+    request('/auth/google/exchange', { method: 'POST', body: JSON.stringify({ code, code_verifier }) }),
   authApple: (data: { identity_token: string; name?: string | null; email?: string | null }) =>
-    req('/auth/apple', { method: 'POST', body: JSON.stringify(data) }),
-  deleteAccount: () => req('/auth/account', { method: 'DELETE' }),
-  me: () => req('/auth/me'),
-  logout: () => req('/auth/logout', { method: 'POST' }),
+    request('/auth/apple', { method: 'POST', body: JSON.stringify(data) }),
+  deleteAccount: () => request('/auth/account', { method: 'DELETE' }),
+  me: () => request('/auth/me'),
+  logout: () => request('/auth/logout', { method: 'POST' }),
   setCurrency: (currency: string) =>
-    req('/auth/currency', { method: 'POST', body: JSON.stringify({ currency }) }),
+    request('/auth/currency', { method: 'POST', body: JSON.stringify({ currency }) }),
 
-  listExpenses: () => req('/expenses'),
+  listExpenses: () => request('/expenses'),
   createExpense: (data: any) =>
-    req('/expenses', { method: 'POST', body: JSON.stringify(data) }),
-  deleteExpense: (id: string) => req(`/expenses/${id}`, { method: 'DELETE' }),
+    request('/expenses', { method: 'POST', body: JSON.stringify(data) }),
+  deleteExpense: (id: string) => request(`/expenses/${id}`, { method: 'DELETE' }),
 
-  listFriends: () => req('/friends'),
+  listFriends: () => request('/friends'),
   createFriend: (data: any) =>
-    req('/friends', { method: 'POST', body: JSON.stringify(data) }),
-  deleteFriend: (id: string) => req(`/friends/${id}`, { method: 'DELETE' }),
-  friendHistory: (id: string) => req(`/friends/${id}/history`),
+    request('/friends', { method: 'POST', body: JSON.stringify(data) }),
+  deleteFriend: (id: string) => request(`/friends/${id}`, { method: 'DELETE' }),
+  friendHistory: (id: string) => request(`/friends/${id}/history`),
 
-  balances: () => req('/balances'),
+  balances: () => request('/balances'),
 
-  listGroups: () => req('/groups'),
-  createGroup: (data: any) => req('/groups', { method: 'POST', body: JSON.stringify(data) }),
-  deleteGroup: (id: string) => req(`/groups/${id}`, { method: 'DELETE' }),
+  listGroups: () => request('/groups'),
+  createGroup: (data: any) => request('/groups', { method: 'POST', body: JSON.stringify(data) }),
+  deleteGroup: (id: string) => request(`/groups/${id}`, { method: 'DELETE' }),
 
-  listRecurring: () => req('/recurring'),
-  createRecurring: (data: any) => req('/recurring', { method: 'POST', body: JSON.stringify(data) }),
-  deleteRecurring: (id: string) => req(`/recurring/${id}`, { method: 'DELETE' }),
+  listRecurring: () => request('/recurring'),
+  createRecurring: (data: any) => request('/recurring', { method: 'POST', body: JSON.stringify(data) }),
+  deleteRecurring: (id: string) => request(`/recurring/${id}`, { method: 'DELETE' }),
 
-  listSettlements: () => req('/settlements'),
-  createSettlement: (data: any) => req('/settlements', { method: 'POST', body: JSON.stringify(data) }),
+  listSettlements: () => request('/settlements'),
+  createSettlement: (data: any) => request('/settlements', { method: 'POST', body: JSON.stringify(data) }),
 
-  fx: () => req('/fx'),
+  fx: () => request('/fx'),
 
-  insights: (month?: string) => req(`/insights${month ? `?month=${encodeURIComponent(month)}` : ''}`),
-  trends: (months = 6) => req(`/trends?months=${months}`),
-  getReceipt: (id: string) => req(`/expenses/${id}/receipt`),
+  insights: (month?: string) => request(`/insights${month ? `?month=${encodeURIComponent(month)}` : ''}`),
+  trends: (months = 6) => request(`/trends?months=${months}`),
+  getReceipt: (id: string) => request(`/expenses/${id}/receipt`),
 
   scan: (image_base64: string, mime_type = 'image/jpeg') =>
-    req('/scan', { method: 'POST', body: JSON.stringify({ image_base64, mime_type }) }),
+    request('/scan', { method: 'POST', body: JSON.stringify({ image_base64, mime_type }) }),
 };
 
 export type User = {

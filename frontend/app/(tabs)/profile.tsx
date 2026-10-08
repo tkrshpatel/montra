@@ -27,7 +27,7 @@ export default function Profile() {
   const confirmDelete = () => {
     Alert.alert(
       'Delete your account?',
-      'This permanently removes your profile, expenses, friends, groups, recurring rules, settlements and sessions. This action cannot be undone.',
+      'This permanently removes your profile and personal records. Shared group history remains for other members with your name replaced by Deleted member. Your group access and sessions are removed. This action cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
         {

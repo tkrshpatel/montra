@@ -20,6 +20,7 @@ from datetime import datetime, timezone, timedelta
 
 from google_auth import create_google_router, digest
 from ledger import friend_effect, settlement_effect
+from shared import create_shared_router, delete_shared_identity
 import jwt as pyjwt
 from jwt.algorithms import RSAAlgorithm
 import json as _json
@@ -355,6 +356,7 @@ async def auth_apple(payload: AppleSignInRequest):
 @api_router.delete("/auth/account")
 async def delete_account(user=Depends(get_current_user)):
     uid = user["user_id"]
+    await delete_shared_identity(db, uid)
     # Hard-delete all user-owned data
     await db.expenses.delete_many({"user_id": uid})
     await db.friends.delete_many({"user_id": uid})
@@ -1264,6 +1266,10 @@ async def on_startup():
         await db.recurring.create_index("recurring_id", unique=True)
         await db.settlements.create_index("user_id")
         await db.settlements.create_index("settlement_id", unique=True)
+        await db.shared_groups.create_index("group_id", unique=True)
+        await db.shared_groups.create_index("members.user_id")
+        await db.shared_groups.create_index("invite_hash", sparse=True)
+        await db.shared_entries.create_index([("group_id", 1), ("created_at", -1), ("entry_id", -1)])
         logger.info("MongoDB indexes ready")
     except Exception as e:
         logger.error("Required database index creation failed")
@@ -1275,6 +1281,7 @@ async def shutdown_db_client():
     client.close()
 
 
+api_router.include_router(create_shared_router(lambda: db, get_current_user))
 app.include_router(api_router)
 
 # Bearer-token API only — no cookies. Keep origins open, disable credentials.

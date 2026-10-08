@@ -32,6 +32,7 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <Feather name="users" size={size} color={color} />,
         }}
       />
+      <Tabs.Screen name="together" options={{ title: "Together", tabBarIcon: ({ color, size }) => <Feather name="grid" size={size} color={color} /> }} />
       <Tabs.Screen
         name="friends"
         options={{
