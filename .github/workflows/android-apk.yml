@@ -1,0 +1,42 @@
+name: Android test APK
+on:
+  push:
+    branches: [main, codex/montra-shared-groups]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: frontend
+    env:
+      EXPO_PUBLIC_BACKEND_URL: ${{ vars.EXPO_PUBLIC_BACKEND_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - run: npm ci
+      - run: npx expo prebuild --platform android --no-install
+      - name: Build standalone test APK
+        run: ./gradlew app:assembleRelease --no-daemon -PreactNativeArchitectures=arm64-v8a
+        working-directory: frontend/android
+      - name: Prepare APK
+        run: cp android/app/build/outputs/apk/release/app-release.apk Montra-test.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Montra-test-apk
+          path: frontend/Montra-test.apk
+          retention-days: 14
